@@ -84,7 +84,7 @@ export const PriceCalculator = () => {
 
   useEffect(() => {
     // Try backend first
-    fetch("http://localhost:3000/metal/rate")
+    fetch("https://kk8rb8x6-3000.inc1.devtunnels.ms/metal/rate")
       .then(res => {
         if (!res.ok) throw new Error("API Error");
         return res.json();
