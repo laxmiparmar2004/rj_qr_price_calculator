@@ -203,7 +203,7 @@ export const PriceCalculator = () => {
       return { metalCost, makingCharges, total, valid: true };
     } else if (metalType === "s") {
       const metalCost = weight * metalRate * rateMultiplier;
-      const makingCharges = weight * makingChargePercent; // per gram for silver
+      const makingCharges = metalCost * (makingChargePercent / 100); // We can switch to per gram if needed by using: weight * makingChargePercent
       const total = metalCost + makingCharges;
       return { metalCost, makingCharges, total, valid: true };
     } else if (metalType === "a") {
@@ -222,7 +222,7 @@ export const PriceCalculator = () => {
       return metalCost + makingCharges * (1 - discountPercent / 100);
     } else if (metalType === "s") {
       const metalCost = weight * metalRate * rateMultiplier;
-      const makingCharges = weight * origMaking;
+      const makingCharges = metalCost * (origMaking / 100);
       return metalCost + makingCharges * (1 - discountPercent / 100);
     } else if (metalType === "a") {
       return weight;
@@ -240,7 +240,7 @@ export const PriceCalculator = () => {
       return metalCost + makingCharges;
     } else if (metalType === "s") {
       const metalCost = weight * metalRate * rateMultiplier;
-      const makingCharges = weight * origMaking;
+      const makingCharges = metalCost * (origMaking / 100);
       return metalCost + makingCharges;
     } else if (metalType === "a") {
       return weight;
@@ -481,6 +481,16 @@ export const PriceCalculator = () => {
             <div className="mt-3 flex items-center gap-1 text-xs text-gray-500">
               <Info className="w-3 h-3" />
               <span>
+                {/* Show here the per gram rate applied after final calculation */}
+                {currentPrice / weight > 0 ? `₹${Math.round( (currentPrice / weight) * (metalType == "s" ? 10 : 1) ).toLocaleString("en-IN")}` : "—"}
+                {metalType === "g" ? " / g" : " / 10g"}
+              </span>
+            </div>
+          )}
+          {metalType !== "a" && (
+            <div className="mt-3 flex items-center gap-1 text-xs text-gray-500">
+              <Info className="w-3 h-3" />
+              <span>
                 {metalType === "g" ? "Gold 995" : "Silver 999"} Rate:{" "}
                 <strong className="text-gray-700">
                   {effectiveRateSource
@@ -521,7 +531,7 @@ export const PriceCalculator = () => {
 
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-1.5 shadow-sm relative">
             <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">
-              {metalType === "g" ? "Making %" : "Making ₹/g"}
+              {"Making %"}
             </label>
             <div className="flex items-end gap-1">
               <input
@@ -587,7 +597,7 @@ export const PriceCalculator = () => {
                     <span>{formatCurrency(priceBreakdown.metalCost)}</span>
                   </div>
                   <div className="flex justify-between text-gray-500">
-                    <span>Making Charges (₹{makingChargePercent}/g)</span>
+                    <span>Making Charges ({makingChargePercent}%)</span>
                     <span>{formatCurrency(priceBreakdown.makingCharges)}</span>
                   </div>
                 </>
