@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { TrendingUp, TrendingDown, AlertTriangle, Info, ChevronDown, Settings } from "lucide-react";
+import { sendManualRatesToServiceWorker } from "../utils/serviceWorkerUtils";
 
 // Fallback URL — move this to an external server later for rate updates without redeployment
 const FALLBACK_RATES_URL = "/data/rates.json";
@@ -93,6 +94,7 @@ export const PriceCalculator = () => {
         setRateSource("backend");
         setRateTimestamp(new Date().toISOString());
         saveCachedRates(data); // Save to localStorage
+        sendManualRatesToServiceWorker(data); // Send to service worker
         setMetalRateLoading(false);
       })
       .catch(err => {
@@ -104,6 +106,7 @@ export const PriceCalculator = () => {
           setMetalRateData(cached);
           setRateSource("cached");
           setRateTimestamp(cached.recorded_on || new Date(localStorage.getItem(`${CACHE_STORAGE_KEY}_timestamp`) || Date.now()).toISOString());
+          sendManualRatesToServiceWorker(cached); // Send to service worker
           setMetalRateLoading(false);
           return;
         }
@@ -138,6 +141,7 @@ export const PriceCalculator = () => {
 
     setMetalRateData(manualData);
     saveCachedRates(manualData);
+    sendManualRatesToServiceWorker(manualData); // Send to service worker
     setRateSource("manual");
     setRateTimestamp(manualData.metalRates.recorded_on);
     setShowManualRateForm(false);

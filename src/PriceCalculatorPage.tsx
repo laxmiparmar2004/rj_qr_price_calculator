@@ -1,13 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Scan } from "lucide-react";
+import { Scan, Wifi, WifiOff } from "lucide-react";
 import { RJLogo } from "./components/Brand/Logo";
 import { PriceCalculator } from "./components/PriceCalculator";
 import { QRScanner } from "./components/QRScanner";
+import { InstallPrompt } from "./components/InstallPrompt";
 
 export const PriceCalculatorPage = () => {
   const navigate = useNavigate();
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   const handleScanQR = (scannedData: string) => {
     try {
@@ -59,18 +74,29 @@ export const PriceCalculatorPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-stone-50 via-white to-stone-50">
+      {/* Online Status Bar */}
+      {!isOnline && (
+        <div className="sticky top-0 z-30 bg-red-50 border-b border-red-200 px-4 py-2 flex items-center gap-2 text-red-700 text-sm">
+          <WifiOff className="w-4 h-4 flex-shrink-0" />
+          <span className="font-medium">You are offline - Using cached data</span>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm">
+      <div className={`sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm ${!isOnline ? "" : ""}`}>
         <div className="max-w-lg mx-auto flex items-center justify-between py-3 px-4">
           <RJLogo className="h-10" />
-          <button
-            onClick={() => setIsScannerOpen(true)}
-            className="p-2 hover:bg-amber-50 rounded-lg transition-colors active:scale-95"
-            title="Scan QR code"
-            aria-label="Scan QR code"
-          >
-            <Scan className="w-5 h-5 text-amber-600 hover:text-amber-700" />
-          </button>
+          <div className="flex items-center gap-2">
+            {isOnline && <Wifi className="w-4 h-4 text-green-600" aria-label="Online" />}
+            <button
+              onClick={() => setIsScannerOpen(true)}
+              className="p-2 hover:bg-amber-50 rounded-lg transition-colors active:scale-95"
+              title="Scan QR code"
+              aria-label="Scan QR code"
+            >
+              <Scan className="w-5 h-5 text-amber-600 hover:text-amber-700" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -83,6 +109,9 @@ export const PriceCalculatorPage = () => {
         onClose={() => setIsScannerOpen(false)}
         onScan={handleScanQR}
       />
+
+      {/* Install Prompt */}
+      <InstallPrompt />
     </div>
   );
 };
