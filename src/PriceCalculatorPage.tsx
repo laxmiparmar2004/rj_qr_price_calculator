@@ -35,7 +35,7 @@ export const PriceCalculatorPage = () => {
         // Navigate with the extracted params
         if (d || i) {
           navigate(
-            `/price-calculator?${new URLSearchParams({
+            `/?${new URLSearchParams({
               ...(d && { d }),
               ...(i && { i }),
             }).toString()}`
@@ -51,7 +51,7 @@ export const PriceCalculatorPage = () => {
 
         if (d || i) {
           navigate(
-            `/price-calculator?${new URLSearchParams({
+            `/?${new URLSearchParams({
               ...(d && { d }),
               ...(i && { i }),
             }).toString()}`
@@ -63,12 +63,12 @@ export const PriceCalculatorPage = () => {
 
       // If it's just the data string (like "g_10_15_1_0"), use it directly
       if (scannedData && !scannedData.includes("://")) {
-        navigate(`/price-calculator?d=${encodeURIComponent(scannedData)}`);
+        navigate(`/?d=${encodeURIComponent(scannedData)}`);
       }
     } catch (error) {
       console.error("Error parsing scanned QR code:", error);
       // Still try to navigate with the raw data
-      navigate(`/price-calculator?d=${encodeURIComponent(scannedData)}`);
+      navigate(`/?d=${encodeURIComponent(scannedData)}`);
     }
   };
 
