@@ -25,8 +25,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
         const qrScanner = new QrScanner(
           videoRef.current!,
           (result) => {
-            alert(JSON.stringify({ scannedData: result }, null, 2)); // Debug alert to show scanned data
-            const scannedData = result.data;
+           const scannedData = result.data;
             onScan(scannedData);
             qrScanner.stop();
             onClose();

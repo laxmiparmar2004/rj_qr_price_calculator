@@ -10,7 +10,6 @@ export const PriceCalculatorPage = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const handleScanQR = (scannedData: string) => {
-    alert(JSON.stringify({ scannedData }, null, 2)); // Debug alert to show scanned data
     try {
       // If it's a full URL, extract the parameters
       if (scannedData.includes("?")) {
@@ -26,6 +25,7 @@ export const PriceCalculatorPage = () => {
               ...(i && { i }),
             }).toString()}`
           );
+          location.reload();
           return;
         }
       } else if (scannedData.startsWith("http")) {
@@ -41,6 +41,7 @@ export const PriceCalculatorPage = () => {
               ...(i && { i }),
             }).toString()}`
           );
+          location.reload();
           return;
         }
       }
