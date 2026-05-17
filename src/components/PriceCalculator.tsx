@@ -65,7 +65,7 @@ export const PriceCalculator = () => {
       weight: Number(parts[1]),
       makingChargeParam: Number(parts[2] || (parts[0] === "g" ? 15 : 0)),
       rateMultiplierParam: Number(parts[3] || 1),
-      discountPercentParam: Number(parts[4] || 0),
+      discountPercentParam: Number(parts[4] || 10),
     };
   }, [d]);
 
@@ -84,7 +84,7 @@ export const PriceCalculator = () => {
 
   useEffect(() => {
     // Try backend first
-    fetch("https://kk8rb8x6-3000.inc1.devtunnels.ms/metal/rate")
+    fetch("https://rjbackend.loca.lt/metal/rate")
       .then(res => {
         if (!res.ok) throw new Error("API Error");
         return res.json();
