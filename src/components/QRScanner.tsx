@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Lightbulb } from "lucide-react";
-import QrScanner from "qr-scanner";
+import { X, Lightbulb, ZoomIn, ZoomOut } from "lucide-react";
+import { Scanner, useDevices } from "@yudiel/react-qr-scanner";
+import { RJLogo } from "./Brand/Logo";
+
+const QrScanner = Scanner.default || Scanner; // Handle both default and named exports
 
 interface QRScannerProps {
   isOpen: boolean;
@@ -9,158 +12,204 @@ interface QRScannerProps {
 }
 
 export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [scanner, setScanner] = useState<QrScanner | null>(null);
+  const scannerRef = useRef<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
+  const [zoom, setZoom] = useState(1); // Zoom level: 1 = 100%, 2 = 200%, etc.
+  const maxZoom = 4;
+  const minZoom = 1;
+ const devices = useDevices();
+ const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
 
+
+  // Stop scanner immediately when modal closes
   useEffect(() => {
-    if (!isOpen || !videoRef.current) return;
+    if (!isOpen) {
+      setError(null);
+      setIsLoading(false);
+      setZoom(1);
+    }
+  }, [isOpen]);
 
-    setIsLoading(true);
-    setError(null);
+  const handleScan = (data: any) => {
+    if (data) {;
+      console.log("QR Code scanned:", data);
+      // Since its raect qr code
+      data = data?.[0]?.rawValue;
+      onScan(data);
+      onClose();
+    }
+  };
 
-    const initScanner = async () => {
-      try {
-        const qrScanner = new QrScanner(
-          videoRef.current!,
-          (result) => {
-           const scannedData = result.data;
-            onScan(scannedData);
-            qrScanner.stop();
-            onClose();
-          },
-          {
-            onDecodeError: (error) => {
-              // Silently ignore decode errors
-              console.debug("Decode error:", error);
-            },
-            maxScansPerSecond: 5,
-            preferredCamera: "environment", // Use back camera
-            highlightCodeOutlineColor: "rgb(255, 193, 7)",
-            highlightScanRegion: true,
-            // Enhanced camera constraints for better focus
-            calculateScanRegion: (video) => {
-              const dedectionAreaPercent = 0.75;
-              const width = video.videoWidth;
-              const height = video.videoHeight;
-              const margin = Math.min(width, height) * (1 - dedectionAreaPercent) / 2;
-              return {
-                x: margin,
-                y: margin,
-                width: width - 2 * margin,
-                height: height - 2 * margin,
-              };
-            },
-          },
-          {
-            facingMode: "environment", // Back camera
-            // Request high resolution for better QR detection
-            width: { min: 360, ideal: 1920, max: 1920 },
-            height: { min: 360, ideal: 1920, max: 1920 },
-            // Enable autofocus
-            focusMode: [{ exact: "continuous" }],
-            // Improve focus distance
-            focusDistance: [{ exact: 0 }],
-          }
-        );
-
-        setScanner(qrScanner);
-        await qrScanner.start();
-        setIsLoading(false);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to access camera. Please check permissions."
-        );
-        setIsLoading(false);
+  const handleError = (err: any) => {
+    if (err?.name === "NotAllowedError") {
+      setError("Camera permission denied. Please allow camera access.");
+    } else if (err?.name === "NotFoundError") {
+      setError("No camera found on this device.");
+    } else if (err?.name === "NotReadableError") {
+      setError("Camera is already in use by another application.");
+    } else {
+      console.error("Scanner error:", err);
+      // Don't show error for decode failures
+      if (err?.message && !err.message.includes("QR code not found")) {
+        setError(err.message || "Failed to access camera.");
       }
-    };
-
-    initScanner();
-
-    return () => {
-      if (scanner) {
-        scanner.stop();
-        scanner.destroy();
-      }
-    };
-  }, [isOpen, onClose, onScan, scanner]);
+    }
+  };
 
   const toggleTorch = async () => {
-    if (!scanner) return;
     try {
-      await scanner.toggleFlash();
-      setIsTorchOn(!isTorchOn);
+      if (scannerRef.current) {
+        // react-qr-scanner torch control
+        const stream = scannerRef.current.stream;
+        if (stream) {
+          const track = stream.getVideoTracks()[0];
+          const capabilities = track.getCapabilities();
+
+          if (capabilities.torch) {
+            await track.applyConstraints({
+              advanced: [{ torch: !isTorchOn }],
+            });
+            setIsTorchOn(!isTorchOn);
+          }
+        }
+      }
     } catch (err) {
-      console.error("Flash not supported on this device:", err);
+      console.error("Torch not supported:", err);
+    }
+  };
+
+  const handleZoomIn = () => {
+    setZoom((prev) => Math.min(prev + 0.5, maxZoom));
+  };
+
+  const handleZoomOut = () => {
+    setZoom((prev) => Math.max(prev - 0.5, minZoom));
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      handleZoomIn();
+    } else {
+      handleZoomOut();
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex flex-col">
+    <div
+      className="fixed inset-0 bg-black z-50 flex flex-col"
+      onWheel={handleWheel}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-black/80 backdrop-blur-sm border-b border-gray-800">
-        <h2 className="text-lg font-semibold text-white">Scan QR Code</h2>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleTorch}
-            className={`p-2 rounded-lg transition-colors ${
-              isTorchOn 
-                ? "bg-yellow-500 hover:bg-yellow-600 text-white" 
-                : "hover:bg-white/10 text-gray-300"
-            }`}
-            aria-label="Toggle flashlight"
-            title="Toggle flashlight"
-          >
-            <Lightbulb className="w-5 h-5" />
-          </button>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            aria-label="Close scanner"
-          >
-            <X className="w-6 h-6 text-white" />
-          </button>
+      <div className="z-120 flex items-center justify-between px-4 py-3 bg-black/80 backdrop-blur-sm border-b border-gray-800">
+        
+        <div className="flex items-center justify-between w-full gap-2">
+          <RJLogo className="h-10" />
+          <div>
+
+            <button
+              onClick={toggleTorch}
+              className={`p-2 rounded-lg transition-colors ${
+                isTorchOn
+                  ? "bg-yellow-500 hover:bg-yellow-600 text-white"
+                  : "hover:bg-white/10 text-gray-300"
+              }` }
+              aria-label="Toggle flashlight"
+              title="Toggle flashlight"
+            >
+              <Lightbulb className="w-5 h-5" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              aria-label="Close scanner"
+            >
+              <X className="w-6 h-6 text-white" />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Camera View - Full Screen */}
-      <div className="relative bg-black flex-1 overflow-hidden">
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black">
-              <div className="text-center space-y-3">
-                <div className="relative mx-auto w-12 h-12">
-                  <div className="absolute inset-0 rounded-full border-3 border-amber-200" />
-                  <div className="absolute inset-0 rounded-full border-3 border-amber-500 border-t-transparent animate-spin" />
-                </div>
-                <p className="text-white text-sm">Initializing camera...</p>
-              </div>
-            </div>
-          )}
+      <div
+        className="relative bg-black flex-1 overflow-hidden"
+        onWheel={handleWheel}
+      >
+        {!error ? (
+          <div
+            style={{
+              transform: `scale(${zoom})`,
+              transformOrigin: "center",
+              transition: "transform 0.2s ease-out",
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <QrScanner
+              ref={scannerRef}
+              delay={300}
+              onError={handleError}
+              onScan={handleScan}
+              style={{ width: "100%", height: "100%" }}
+              components={{
+                audio: true, // Play beep sound on scan
+                onOff: true, // Show camera on/off button
+                torch: true, // Show torch/flashlight button (if supported)
+                zoom: true, // Show zoom control (if supported)
+                finder: true, // Show finder overlay
+              }}
+              constraints={{
+                audio: false,
+                
+                video: {
+                  deviceId: selectedDeviceId,
+                  facingMode: "environment",
+                  width: { ideal: 1920 },
+                  height: { ideal: 1080 },
+                },
+              }}
+            />
+          </div>
+        ) : null}
 
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover"
-            style={{ display: isLoading ? "none" : "block" }}
-          />
+        {/* Select device option top center */}
+        {devices.length > 1 && (
+          <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-30 bg-black/80 backdrop-blur-sm border border-gray-700 rounded-lg px-3 py-2">
+            <select
+              value={selectedDeviceId}
+              onChange={(e) => setSelectedDeviceId(e.target.value)}
+              className="bg-black text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              {devices.map((device) => (
+                <option key={device.id} value={device.id}>
+                  {device.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
-          {/* Scan Frame */}
-          {!isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="relative w-48 h-48 border-2 border-amber-400">
-                {/* Corner markers */}
-                <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-amber-400" />
-                <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-amber-400" />
-                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-amber-400" />
-                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-amber-400" />
-              </div>
+        {/* Scan Frame Overlay */}
+        {!error && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="relative w-48 h-48 border-2 border-amber-400">
+              {/* Corner markers */}
+              <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-amber-400" />
+              <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-amber-400" />
+              <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-amber-400" />
+              <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-amber-400" />
             </div>
-          )}
+          </div>
+        )}
+
+        
       </div>
 
       {/* Error/Instructions Overlay */}
@@ -179,9 +228,11 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       )}
 
       {/* Instructions Overlay */}
-      {!error && !isLoading && (
+      {!error && (
         <div className="absolute bottom-8 left-0 right-0 text-center pointer-events-none">
-          <p className="text-white text-sm font-medium bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full inline-block">Position the QR code in the frame to scan</p>
+          <p className="text-white text-sm font-medium bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full inline-block">
+            Position the QR code in the frame to scan
+          </p>
         </div>
       )}
     </div>

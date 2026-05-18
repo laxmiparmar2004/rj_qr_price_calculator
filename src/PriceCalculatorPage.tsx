@@ -83,7 +83,7 @@ export const PriceCalculatorPage = () => {
       )}
 
       {/* Header */}
-      <div className={`sticky top-0 z-100 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm ${!isOnline ? "" : ""}`}>
+      <div className={`sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm ${!isOnline ? "" : ""}`}>
         <div className="max-w-lg mx-auto flex items-center justify-between py-3 px-4">
           <RJLogo className="h-10" />
           <div className="flex items-center gap-2">

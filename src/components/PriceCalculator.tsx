@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp, TrendingDown, AlertTriangle, Info, ChevronDown, Settings } from "lucide-react";
+import { TrendingUp, TrendingDown, AlertTriangle, Info, ChevronDown, Settings, RefreshCcw } from "lucide-react";
 import { sendManualRatesToServiceWorker } from "../utils/serviceWorkerUtils";
 
 // Fallback URL — move this to an external server later for rate updates without redeployment
@@ -104,7 +104,6 @@ export const PriceCalculator = () => {
       })
       .catch(err => {
         console.error("Live rates failed", err);
-        
         const cached = getCachedRates();
         if (cached?.metalRates) {
           setMetalRateData(cached);
@@ -361,7 +360,7 @@ export const PriceCalculator = () => {
           </div>
         )}
 
-        {rateSource === "cached" && (
+        {(rateSource === "cached") && (
           <div className="flex items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-blue-800 text-sm">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -403,6 +402,15 @@ export const PriceCalculator = () => {
           <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
             <span className="font-medium">Last Updated:</span>
             <span>{formatLastUpdated(rateTimestamp)}</span>
+            {rateSource !== "cached" && (
+              <button
+                onClick={fetchMetalRates}
+                disabled={isRetryingRates}
+                className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+              >
+                {isRetryingRates ? "Retrying..." : <RefreshCcw size={16} />}
+              </button>
+            )}
           </div>
         )}
       </div>
