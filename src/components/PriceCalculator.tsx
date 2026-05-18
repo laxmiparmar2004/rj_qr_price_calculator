@@ -81,6 +81,7 @@ export const PriceCalculator = () => {
   const [isRetryingRates, setIsRetryingRates] = useState(false);
   const [showMandatoryRateModal, setShowMandatoryRateModal] = useState(false);
   const [showQuickManualForm, setShowQuickManualForm] = useState(false);
+  const [serverFailureWarning, setServerFailureWarning] = useState(false);
 
   const fetchMetalRates = () => {
     setIsRetryingRates(true);
@@ -106,6 +107,7 @@ export const PriceCalculator = () => {
       })
       .catch(err => {
         console.error("Live rates failed", err);
+        setServerFailureWarning(true);
         const cached = getCachedRates();
         if (cached?.metalRates) {
           setMetalRateData(cached);
@@ -461,6 +463,21 @@ export const PriceCalculator = () => {
 
       {/* Fallback/Cache/Manual Banner */}
       <div className="space-y-2">
+        {serverFailureWarning && (
+          <div className="flex items-center justify-between gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-800 text-sm">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span>Failed to load rates from server.</span>
+            </div>
+            <button
+              onClick={() => setServerFailureWarning(false)}
+              className="text-red-600 hover:text-red-800 font-semibold text-lg leading-none"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {(rateSource === "cached") && (
           <div className="flex items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-blue-800 text-sm">
             <div className="flex items-center gap-2">
