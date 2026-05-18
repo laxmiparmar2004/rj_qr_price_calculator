@@ -111,8 +111,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               </div>
             </div>
           )}
-        </div>
-
       </div>
 
       {/* Error/Instructions Overlay */}
