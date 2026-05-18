@@ -83,11 +83,14 @@ export const PriceCalculator = () => {
   const [showQuickManualForm, setShowQuickManualForm] = useState(false);
   const [serverFailureWarning, setServerFailureWarning] = useState(false);
 
+  // Metalrate backend url
+  const [MetalRateBackendUrl] = useState<string>("https://kk8rb8x6-3002.inc1.devtunnels.ms/");
+
   const fetchMetalRates = () => {
     setIsRetryingRates(true);
     setMetalRateLoading(true);
     
-    fetch("https://rjbackend.loca.lt/metal/rate")
+    fetch(MetalRateBackendUrl + "metal/rate")
       .then(res => {
         if (!res.ok) throw new Error("API Error");
         return res.json();
@@ -98,7 +101,8 @@ export const PriceCalculator = () => {
         }
         setMetalRateData(data);
         setRateSource("backend");
-        setRateTimestamp(new Date().toISOString());
+        console.log("Live rates fetched", data);
+        setRateTimestamp(new Date(data?.metalRates?.recorded_on).toISOString() || new Date().toISOString());
         saveCachedRates(data);
         sendManualRatesToServiceWorker(data);
         setMetalRateLoading(false);
@@ -112,7 +116,7 @@ export const PriceCalculator = () => {
         if (cached?.metalRates) {
           setMetalRateData(cached);
           setRateSource("cached");
-          setRateTimestamp(cached.recorded_on || new Date(localStorage.getItem(`${CACHE_STORAGE_KEY}_timestamp`) || Date.now()).toISOString());
+          setRateTimestamp(cached?.metalRates?.recorded_on || cached.recorded_on || new Date(localStorage.getItem(`${CACHE_STORAGE_KEY}_timestamp`) || Date.now()).toISOString());
           sendManualRatesToServiceWorker(cached);
           setMetalRateLoading(false);
           setIsRetryingRates(false);
