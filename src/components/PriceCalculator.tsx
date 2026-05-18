@@ -1,7 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp, TrendingDown, AlertTriangle, Info, ChevronDown, Settings, RefreshCcw } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import {
+  TrendingUp,
+  TrendingDown,
+  Info,
+  ChevronDown,
+  Settings,
+  RefreshCcw,
+} from "lucide-react";
 import { sendManualRatesToServiceWorker } from "../utils/serviceWorkerUtils";
 
 // Cache storage key for metal rates
@@ -70,13 +84,19 @@ export const PriceCalculator = () => {
 
   const metalType = parsed?.metalType || "";
   const [weight, setWeight] = useState<number>(parsed?.weight || 0);
-  const [makingChargePercent, setMakingChargePercent] = useState<number>(parsed?.makingChargeParam || 15);
-  const [rateMultiplier, setRateMultiplier] = useState<number>(parsed?.rateMultiplierParam || 1);
+  const [makingChargePercent, setMakingChargePercent] = useState<number>(
+    parsed?.makingChargeParam || 15,
+  );
+  const [rateMultiplier, setRateMultiplier] = useState<number>(
+    parsed?.rateMultiplierParam || 1,
+  );
   const discountPercent = parsed?.discountPercentParam || 0;
 
   const [metalRateData, setMetalRateData] = useState<any>(null);
   const [metalRateLoading, setMetalRateLoading] = useState(true);
-  const [rateSource, setRateSource] = useState<"backend" | "cached" | "manual" | "none">("none");
+  const [rateSource, setRateSource] = useState<
+    "backend" | "cached" | "manual" | "none"
+  >("none");
   const [rateTimestamp, setRateTimestamp] = useState<string>("");
   const [isRetryingRates, setIsRetryingRates] = useState(false);
   const [showMandatoryRateModal, setShowMandatoryRateModal] = useState(false);
@@ -84,39 +104,51 @@ export const PriceCalculator = () => {
   const [serverFailureWarning, setServerFailureWarning] = useState(false);
 
   // Metalrate backend url
-  const [MetalRateBackendUrl] = useState<string>("https://kk8rb8x6-3002.inc1.devtunnels.ms/");
+  const [MetalRateBackendUrl] = useState<string>(
+    "https://kk8rb8x6-3002.inc1.devtunnels.ms/",
+  );
 
   const fetchMetalRates = () => {
     setIsRetryingRates(true);
     setMetalRateLoading(true);
-    
+
     fetch(MetalRateBackendUrl + "metal/rate")
-      .then(res => {
+      .then((res) => {
         if (!res.ok) throw new Error("API Error");
         return res.json();
       })
-      .then(data => {
+      .then((data) => {
         if (data.error) {
           throw new Error(data.error);
         }
         setMetalRateData(data);
         setRateSource("backend");
         console.log("Live rates fetched", data);
-        setRateTimestamp(new Date(data?.metalRates?.recorded_on).toISOString() || new Date().toISOString());
+        setRateTimestamp(
+          new Date(data?.metalRates?.recorded_on).toISOString() ||
+            new Date().toISOString(),
+        );
         saveCachedRates(data);
         sendManualRatesToServiceWorker(data);
         setMetalRateLoading(false);
         setIsRetryingRates(false);
         setShowMandatoryRateModal(false);
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Live rates failed", err);
         setServerFailureWarning(true);
         const cached = getCachedRates();
         if (cached?.metalRates) {
           setMetalRateData(cached);
           setRateSource("cached");
-          setRateTimestamp(cached?.metalRates?.recorded_on || cached.recorded_on || new Date(localStorage.getItem(`${CACHE_STORAGE_KEY}_timestamp`) || Date.now()).toISOString());
+          setRateTimestamp(
+            cached?.metalRates?.recorded_on ||
+              cached.recorded_on ||
+              new Date(
+                localStorage.getItem(`${CACHE_STORAGE_KEY}_timestamp`) ||
+                  Date.now(),
+              ).toISOString(),
+          );
           sendManualRatesToServiceWorker(cached);
           setMetalRateLoading(false);
           setIsRetryingRates(false);
@@ -143,7 +175,12 @@ export const PriceCalculator = () => {
     const goldRate = Number(manualGoldRate);
     const silverRate = Number(manualSilverRate);
 
-    if (!manualGoldRate || !manualSilverRate || goldRate <= 0 || silverRate <= 0) {
+    if (
+      !manualGoldRate ||
+      !manualSilverRate ||
+      goldRate <= 0 ||
+      silverRate <= 0
+    ) {
       alert("Please enter valid positive rates for both gold and silver");
       return;
     }
@@ -159,7 +196,7 @@ export const PriceCalculator = () => {
         GL995: goldRate,
         SL_999: silverRate,
         recorded_on: new Date().toISOString(),
-      }
+      },
     };
 
     setMetalRateData(manualData);
@@ -179,6 +216,13 @@ export const PriceCalculator = () => {
     return null;
   }, [metalRateData]);
 
+  const rateChangePercent = useMemo(() => {
+    if (!metalRateData || !effectiveRateSource) return null;
+    return metalRateData.rate_change_percent[
+      metalType == "g" ? "GL995" : "SL_999"
+    ];
+  }, [metalRateData, metalType]);
+
   // Compute metal rate per gram
   const metalRate = useMemo(() => {
     if (!effectiveRateSource) return 0;
@@ -193,7 +237,10 @@ export const PriceCalculator = () => {
   // Apply karat multiplier for gold
   useEffect(() => {
     if (metalType === "g" && parsed) {
-      if (parsed.rateMultiplierParam === 1 && !(Number(d?.split("_")?.[3]) === 1)) {
+      if (
+        parsed.rateMultiplierParam === 1 &&
+        !(Number(d?.split("_")?.[3]) === 1)
+      ) {
         setRateMultiplier(75 / 100); // default 18K
       }
     }
@@ -269,9 +316,14 @@ export const PriceCalculator = () => {
     try {
       const storageKey = "rj_pc_price_history";
       const stored = localStorage.getItem(storageKey);
-      const historyData: Record<string, PriceHistoryEntry[]> = stored ? JSON.parse(stored) : {};
+      const historyData: Record<string, PriceHistoryEntry[]> = stored
+        ? JSON.parse(stored)
+        : {};
       const itemHistory = historyData[d] || [];
-      const todayStr = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+      const todayStr = new Date().toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+      });
       const currentPrice = Math.round(priceBreakdown.total);
 
       if (itemHistory.length === 0) {
@@ -301,17 +353,25 @@ export const PriceCalculator = () => {
   }, [d, priceBreakdown.total, priceBreakdown.valid]);
 
   const hasHistory = priceHistory.length > 1;
-  const previousPrice = hasHistory ? priceHistory[priceHistory.length - 2].price : 0;
+  const previousPrice = hasHistory
+    ? priceHistory[priceHistory.length - 2].price
+    : 0;
   const currentPrice = Math.round(priceBreakdown.total);
   const priceDiff = hasHistory ? currentPrice - previousPrice : 0;
 
   // Helpers
   const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(amount);
 
-  const metalLabel = metalType === "g" ? "Gold" : metalType === "s" ? "Silver" : "Artificial";
+  const metalLabel =
+    metalType === "g" ? "Gold" : metalType === "s" ? "Silver" : "Artificial";
   const metalIcon = metalType === "g" ? "🪙" : metalType === "s" ? "🥈" : "💎";
-  const karatDisplay = metalType === "g" ? `${Math.round(rateMultiplier * 24)}K` : "";
+  const karatDisplay =
+    metalType === "g" ? `${Math.round(rateMultiplier * 24)}K` : "";
 
   const [breakupOpen, setBreakupOpen] = useState(false);
 
@@ -322,9 +382,12 @@ export const PriceCalculator = () => {
       <div className="flex items-center justify-center min-h-[60vh] px-4">
         <div className="text-center space-y-4 max-w-sm">
           <div className="text-6xl">📷</div>
-          <h2 className="text-xl font-semibold text-gray-800">Scan a QR Code</h2>
+          <h2 className="text-xl font-semibold text-gray-800">
+            Scan a QR Code
+          </h2>
           <p className="text-gray-500 text-sm">
-            Scan the QR code on any jewellery item to see its live price breakdown.
+            Scan the QR code on any jewellery item to see its live price
+            breakdown.
           </p>
         </div>
       </div>
@@ -347,16 +410,18 @@ export const PriceCalculator = () => {
 
   return (
     <div className="w-full max-w-lg mx-auto px-4 py-6 space-y-5">
-
       {/* Mandatory Rate Entry Modal - First Time or No Cache */}
       {showMandatoryRateModal && !metalRateData && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4">
             <div className="text-center space-y-2">
               <div className="text-4xl">⚠️</div>
-              <h2 className="text-lg font-bold text-gray-900">Enter Metal Rates</h2>
+              <h2 className="text-lg font-bold text-gray-900">
+                Enter Metal Rates
+              </h2>
               <p className="text-sm text-gray-600">
-                Live rates unavailable. Please enter current market rates to continue.
+                Live rates unavailable. Please enter current market rates to
+                continue.
               </p>
             </div>
 
@@ -398,7 +463,8 @@ export const PriceCalculator = () => {
             </div>
 
             <p className="text-xs text-gray-500 text-center border-t border-gray-100 pt-3">
-              Rates will be saved locally. When the server comes online, server rates will take priority.
+              Rates will be saved locally. When the server comes online, server
+              rates will take priority.
             </p>
           </div>
         </div>
@@ -465,75 +531,110 @@ export const PriceCalculator = () => {
         </div>
       )}
 
-      {/* Fallback/Cache/Manual Banner */}
-      <div className="space-y-2">
-        {serverFailureWarning && (
-          <div className="flex items-center justify-between gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-800 text-sm">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              <span>Failed to load rates from server.</span>
-            </div>
-            <button
-              onClick={() => setServerFailureWarning(false)}
-              className="text-red-600 hover:text-red-800 font-semibold text-lg leading-none"
-            >
-              ×
-            </button>
-          </div>
-        )}
-
-        {(rateSource === "cached") && (
-          <div className="flex items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-blue-800 text-sm">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              <span>Using cached rates.</span>
-            </div>
-            <button
-              onClick={fetchMetalRates}
-              disabled={isRetryingRates}
-              className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-            >
-              {isRetryingRates ? "Retrying..." : "Try Server"}
-            </button>
-          </div>
-        )}
-
-        {metalRateData && (
-          <div className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm ${
-            rateSource === "backend"
-              ? "bg-green-50 border border-green-200 text-green-800"
-              : rateSource === "cached"
-              ? "bg-blue-50 border border-blue-200 text-blue-800"
-              : "bg-purple-50 border border-purple-200 text-purple-800"
-          }`}>
-            <div className="flex items-center gap-2">
+      {/* Status & Rate Info */}
+      {metalRateData && rateTimestamp && (
+        <div className="space-y-2 border rounded p-1">
+          {/* Unified Status Banner */}
+          <div
+            className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm ${
+              serverFailureWarning
+                ? "bg-red-50 border border-red-200 text-red-800"
+                : rateSource === "backend"
+                  ? "bg-green-50 border border-green-200 text-green-800"
+                  : rateSource === "cached"
+                    ? "bg-blue-50 border border-blue-200 text-blue-800"
+                    : "bg-purple-50 border border-purple-200 text-purple-800"
+            }`}
+          >
+            <div className="flex items-center gap-2 flex-1">
               <Info className="w-4 h-4 flex-shrink-0" />
-              <div>
-                <span className="font-medium">Rate Source:</span>
-                <span className="ml-1 capitalize">
-                  {rateSource === "backend" ? "Live (Server)" : rateSource === "cached" ? "Cached" : "Manual Entry"}
+              <span className="text-xs">
+                {serverFailureWarning
+                  ? "Server error • Using "
+                  : rateSource === "backend"
+                    ? "Live Server • "
+                    : rateSource === "cached"
+                      ? "Cached Rates • "
+                      : "Manual Entry • "}
+                {metalType !== "a" && (
+                  <>
+                    {metalType === "g" ? "Gold 995" : "Silver 999"}:{" "}
+                    <strong>
+                      {effectiveRateSource
+                        ? `₹${Number(metalType === "g" ? effectiveRateSource.GL995 : effectiveRateSource.SL_999).toLocaleString("en-IN")}`
+                        : "—"}
+                    </strong>
+                  </>
+                )}
+              </span>
+              {rateChangePercent !== null && metalType !== "a" && (
+                <span
+                  className={`inline-flex items-center gap-0.5 font-medium ${
+                    rateChangePercent < 0
+                      ? "text-red-600"
+                      : rateChangePercent > 0
+                        ? "text-green-600"
+                        : "text-gray-500"
+                  }`}
+                >
+                  {rateChangePercent > 0 ? (
+                    <TrendingUp className="w-3 h-3" />
+                  ) : rateChangePercent < 0 ? (
+                    <TrendingDown className="w-3 h-3" />
+                  ) : null}
+                  {Math.abs(rateChangePercent)}%
                 </span>
-              </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {serverFailureWarning && (
+                <button
+                  onClick={() => setServerFailureWarning(false)}
+                  className="text-red-600 hover:text-red-800 font-semibold text-lg leading-none"
+                >
+                  ×
+                </button>
+              )}
+              {rateSource === "cached" && (
+                <button
+                  onClick={fetchMetalRates}
+                  disabled={isRetryingRates}
+                  className="px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                >
+                  {isRetryingRates ? "Retrying..." : "Try Server"}
+                </button>
+              )}
+              {rateSource !== "cached" && (
+                <button
+                  onClick={fetchMetalRates}
+                  disabled={isRetryingRates}
+                  className="p-1.5 text-gray-500 hover:text-gray-700 transition-colors"
+                  title="Refresh rates"
+                >
+                  {isRetryingRates ? (
+                    <RefreshCcw size={14} className="animate-spin" />
+                  ) : (
+                    <RefreshCcw size={14} />
+                  )}
+                </button>
+              )}
             </div>
           </div>
-        )}
 
-        {metalRateData && rateTimestamp && (
-          <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-700">
-            <span className="font-medium">Last Updated:</span>
-            <span>{formatLastUpdated(rateTimestamp)}</span>
-            {rateSource !== "cached" && (
-              <button
-                onClick={fetchMetalRates}
-                disabled={isRetryingRates}
-                className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-              >
-                {isRetryingRates ? "Retrying..." : <RefreshCcw size={16} />}
-              </button>
+          {/* Last Updated Inline */}
+          <div className="flex items-center justify-between text-xs text-gray-500 px-4">
+            <span>Updated {formatLastUpdated(rateTimestamp)}</span>
+            {effectiveRateSource?.recorded_on && (
+              <span className="text-gray-400">
+                {new Date(effectiveRateSource.recorded_on).toLocaleDateString(
+                  "en-IN",
+                  { day: "2-digit", month: "short", year: "numeric" },
+                )}
+              </span>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Metal Type Badge & Header */}
       <div className="flex items-center justify-between">
@@ -541,12 +642,13 @@ export const PriceCalculator = () => {
           <span className="text-2xl">{metalIcon}</span>
           <div>
             <span
-              className={`text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full ${metalType === "g"
+              className={`text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full ${
+                metalType === "g"
                   ? "bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-800"
                   : metalType === "s"
                     ? "bg-gradient-to-r from-slate-100 to-gray-200 text-slate-700"
                     : "bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800"
-                }`}
+              }`}
             >
               {metalLabel} {karatDisplay}
             </span>
@@ -562,11 +664,14 @@ export const PriceCalculator = () => {
           </button>
           {effectiveRateSource?.recorded_on && (
             <span className="text-xs text-gray-400">
-              {new Date(effectiveRateSource.recorded_on).toLocaleDateString("en-IN", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })}
+              {new Date(effectiveRateSource.recorded_on).toLocaleDateString(
+                "en-IN",
+                {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                },
+              )}
             </span>
           )}
         </div>
@@ -574,17 +679,23 @@ export const PriceCalculator = () => {
 
       {/* Price Display Card */}
       <div
-        className={`relative overflow-hidden rounded-2xl p-6 ${metalType === "g"
+        className={`relative overflow-hidden rounded-2xl p-6 ${
+          metalType === "g"
             ? "bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 border border-amber-200/60"
             : metalType === "s"
               ? "bg-gradient-to-br from-slate-50 via-gray-50 to-zinc-100 border border-slate-200/60"
               : "bg-gradient-to-br from-purple-50 via-pink-50 to-fuchsia-50 border border-purple-200/60"
-          }`}
+        }`}
       >
         {/* Decorative circle */}
         <div
-          className={`absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-10 ${metalType === "g" ? "bg-amber-400" : metalType === "s" ? "bg-slate-400" : "bg-purple-400"
-            }`}
+          className={`absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-10 ${
+            metalType === "g"
+              ? "bg-amber-400"
+              : metalType === "s"
+                ? "bg-slate-400"
+                : "bg-purple-400"
+          }`}
         />
 
         <div className="relative z-10">
@@ -595,18 +706,23 @@ export const PriceCalculator = () => {
             >
               Approx. Price
             </span>
-            {showMinPrice && originalMinTotal > 0 && Math.round(originalMinTotal) < currentPrice && (
-              <span className="text-[10px] font-bold text-red-500/80 animate-pulse select-none cursor-default bg-red-50 px-2 py-0.5 rounded-full">
-                LIMIT: {formatCurrency(Math.round(originalMinTotal))}
-              </span>
-            )}
+            {showMinPrice &&
+              originalMinTotal > 0 &&
+              Math.round(originalMinTotal) < currentPrice && (
+                <span className="text-[10px] font-bold text-red-500/80 animate-pulse select-none cursor-default bg-red-50 px-2 py-0.5 rounded-full">
+                  LIMIT: {formatCurrency(Math.round(originalMinTotal))}
+                </span>
+              )}
           </div>
 
           <div className="flex flex-col items-start mt-2">
             {/* Discount Strikethrough & Savings Badge */}
             <div
-              className={`flex items-center gap-3 overflow-hidden transition-all duration-500 ease-out ${currentPrice < Math.round(originalPrice) ? "max-h-12 opacity-100 mb-1" : "max-h-0 opacity-0 mb-0"
-                }`}
+              className={`flex items-center gap-3 overflow-hidden transition-all duration-500 ease-out ${
+                currentPrice < Math.round(originalPrice)
+                  ? "max-h-12 opacity-100 mb-1"
+                  : "max-h-0 opacity-0 mb-0"
+              }`}
             >
               <span className="text-xl sm:text-2xl text-gray-400 font-medium line-through decoration-red-500/50 decoration-[2px]">
                 {formatCurrency(Math.round(originalPrice))}
@@ -618,51 +734,49 @@ export const PriceCalculator = () => {
 
             <div className="flex items-end gap-3">
               <span
-                className={`text-4xl sm:text-5xl font-light tracking-tight transition-colors duration-500 ${currentPrice < Math.round(originalPrice)
+                className={`text-4xl sm:text-5xl font-light tracking-tight transition-colors duration-500 ${
+                  currentPrice < Math.round(originalPrice)
                     ? "text-emerald-600 font-normal drop-shadow-sm"
-                    : metalType === "g" ? "text-amber-900" : metalType === "s" ? "text-slate-800" : "text-purple-900"
-                  }`}
+                    : metalType === "g"
+                      ? "text-amber-900"
+                      : metalType === "s"
+                        ? "text-slate-800"
+                        : "text-purple-900"
+                }`}
               >
                 {priceBreakdown.valid ? formatCurrency(currentPrice) : "—"}
               </span>
 
               {hasHistory && priceDiff !== 0 && (
                 <span
-                  className={`inline-flex items-center gap-1 text-sm font-semibold px-2 py-0.5 rounded-lg mb-2 ${priceDiff > 0 ? "text-red-600 bg-red-50" : "text-green-600 bg-green-50"
-                    }`}
+                  className={`inline-flex items-center gap-1 text-sm font-semibold px-2 py-0.5 rounded-lg mb-2 ${
+                    priceDiff > 0
+                      ? "text-red-600 bg-red-50"
+                      : "text-green-600 bg-green-50"
+                  }`}
                 >
-                  {priceDiff > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                  {priceDiff > 0 ? (
+                    <TrendingUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <TrendingDown className="w-3.5 h-3.5" />
+                  )}
                   {formatCurrency(Math.abs(priceDiff))}
                 </span>
               )}
             </div>
-          </div>
-
-          {/* Rate Info */}
-          {metalType !== "a" && (
-            <div className="mt-3 flex items-center gap-1 text-xs text-gray-500">
-              <Info className="w-3 h-3" />
-              <span>
-                {/* Show here the per gram rate applied after final calculation */}
-                {currentPrice / weight > 0 ? `₹${Math.round( (currentPrice / weight) * (metalType == "s" ? 10 : 1) ).toLocaleString("en-IN")}` : "—"}
-                {metalType === "g" ? " / g" : " / 10g"}
-              </span>
-            </div>
-          )}
-          {metalType !== "a" && (
-            <div className="mt-3 flex items-center gap-1 text-xs text-gray-500">
-              <Info className="w-3 h-3" />
-              <span>
-                {metalType === "g" ? "Gold 995" : "Silver 999"} Rate:{" "}
-                <strong className="text-gray-700">
-                  {effectiveRateSource
-                    ? `₹${Number(metalType === "g" ? effectiveRateSource.GL995 : effectiveRateSource.SL_999).toLocaleString("en-IN")}`
+              {metalType !== "a" && (
+              <div className="mt-3 flex items-center gap-1 text-xs text-gray-500">
+                <Info className="w-3 h-3" />
+                <span>
+                  {/* Show here the per gram rate applied after final calculation */}
+                  {currentPrice / weight > 0
+                    ? `₹${Math.round((currentPrice / weight) * (metalType == "s" ? 10 : 1)).toLocaleString("en-IN")}`
                     : "—"}
-                </strong>
-                {metalType === "g" ? " / 10g" : " / kg"}
-              </span>
-            </div>
-          )}
+                  {metalType === "g" ? " / g" : " / 10g"}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -670,7 +784,8 @@ export const PriceCalculator = () => {
       <div className="bg-amber-50/70 border-l-4 border-amber-400 px-4 py-3 rounded-r-xl text-sm text-amber-900">
         <p className="font-medium text-xs">Disclaimer</p>
         <p className="opacity-80 text-xs mt-0.5">
-          Rates are based on current market prices. Actual price may vary at the time of billing.
+          Rates are based on current market prices. Actual price may vary at the
+          time of billing.
         </p>
       </div>
 
@@ -678,7 +793,9 @@ export const PriceCalculator = () => {
       {metalType !== "a" && (
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-1.5 shadow-sm">
-            <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Weight</label>
+            <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">
+              Weight
+            </label>
             <div className="flex items-end gap-1">
               <input
                 type="number"
@@ -701,12 +818,15 @@ export const PriceCalculator = () => {
                 step="0.1"
                 value={makingChargePercent}
                 onChange={(e) => setMakingChargePercent(Number(e.target.value))}
-                className={`text-2xl font-light bg-transparent border-0 border-b-2 focus:ring-0 w-full p-0 pb-1 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${currentPrice < Math.round(originalMinTotal)
+                className={`text-2xl font-light bg-transparent border-0 border-b-2 focus:ring-0 w-full p-0 pb-1 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                  currentPrice < Math.round(originalMinTotal)
                     ? "text-red-600 border-red-300 focus:border-red-500"
                     : "text-gray-900 border-gray-200 focus:border-amber-400"
-                  }`}
+                }`}
               />
-              <span className="text-sm text-gray-400 pb-1">{metalType === "g" ? "%" : "₹/g"}</span>
+              <span className="text-sm text-gray-400 pb-1">
+                {metalType === "g" ? "%" : "₹/g"}
+              </span>
             </div>
             {currentPrice < Math.round(originalMinTotal) && (
               <span className="absolute -bottom-5 right-2 text-[10px] text-red-500 font-medium">
@@ -736,10 +856,15 @@ export const PriceCalculator = () => {
                 <>
                   <div className="flex justify-between text-gray-500">
                     <span>Rate ({karatDisplay})</span>
-                    <span>{formatCurrency(metalRate * rateMultiplier * 10)} / 10g</span>
+                    <span>
+                      {formatCurrency(metalRate * rateMultiplier * 10)} / 10g
+                    </span>
                   </div>
                   <div className="flex justify-between text-gray-500">
-                    <span>Metal Cost ({weight}g × ₹{Math.round(metalRate * rateMultiplier)}/g)</span>
+                    <span>
+                      Metal Cost ({weight}g × ₹
+                      {Math.round(metalRate * rateMultiplier)}/g)
+                    </span>
                     <span>{formatCurrency(priceBreakdown.metalCost)}</span>
                   </div>
                   <div className="flex justify-between text-gray-500">
@@ -778,11 +903,16 @@ export const PriceCalculator = () => {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-medium text-gray-800">Price History</h3>
-            <span className="text-xs text-gray-400">{priceHistory.length} records</span>
+            <span className="text-xs text-gray-400">
+              {priceHistory.length} records
+            </span>
           </div>
           <div className="h-48 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={priceHistory} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+              <LineChart
+                data={priceHistory}
+                margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+              >
                 <XAxis
                   dataKey="date"
                   axisLine={false}
@@ -799,7 +929,11 @@ export const PriceCalculator = () => {
                   width={50}
                 />
                 <Tooltip
-                  cursor={{ stroke: "#f3f4f6", strokeWidth: 2, fill: "transparent" }}
+                  cursor={{
+                    stroke: "#f3f4f6",
+                    strokeWidth: 2,
+                    fill: "transparent",
+                  }}
                   contentStyle={{
                     borderRadius: "10px",
                     border: "none",
@@ -807,19 +941,35 @@ export const PriceCalculator = () => {
                     fontSize: "13px",
                   }}
                   formatter={(value) => {
-                    const price = typeof value === "number" ? value : Number(value ?? 0)
-                    return [`₹${price.toLocaleString("en-IN")}`, "Price"]
+                    const price =
+                      typeof value === "number" ? value : Number(value ?? 0);
+                    return [`₹${price.toLocaleString("en-IN")}`, "Price"];
                   }}
-                  labelStyle={{ color: "#374151", fontWeight: 600, marginBottom: "4px" }}
+                  labelStyle={{
+                    color: "#374151",
+                    fontWeight: 600,
+                    marginBottom: "4px",
+                  }}
                 />
                 <Line
                   type="monotone"
                   dataKey="price"
-                  stroke={metalType === "g" ? "#d97706" : metalType === "s" ? "#64748b" : "#9333ea"}
+                  stroke={
+                    metalType === "g"
+                      ? "#d97706"
+                      : metalType === "s"
+                        ? "#64748b"
+                        : "#9333ea"
+                  }
                   strokeWidth={2.5}
                   dot={{
                     r: 4,
-                    fill: metalType === "g" ? "#d97706" : metalType === "s" ? "#64748b" : "#9333ea",
+                    fill:
+                      metalType === "g"
+                        ? "#d97706"
+                        : metalType === "s"
+                          ? "#64748b"
+                          : "#9333ea",
                     strokeWidth: 2,
                     stroke: "#fff",
                   }}
@@ -834,7 +984,10 @@ export const PriceCalculator = () => {
       {/* Footer */}
       <div className="text-center space-y-2 pt-2 pb-4">
         <p className="text-xs text-gray-400">
-          Powered by <span className="font-semibold text-gray-600">Roopkamal Jewellers</span>
+          Powered by{" "}
+          <span className="font-semibold text-gray-600">
+            Roopkamal Jewellers
+          </span>
         </p>
         {i && (
           <button
