@@ -284,7 +284,7 @@ export const PriceCalculator = () => {
         const diff = currentPrice - lastEntry.price;
         const percentChange = Math.abs(diff / lastEntry.price);
 
-        if (Math.abs(diff) >= 100 || percentChange >= 0.005) {
+        if (Math.abs(diff) >= 500 || percentChange >= 0.05) {
           if (lastEntry.date === todayStr) {
             lastEntry.price = currentPrice;
           } else {
