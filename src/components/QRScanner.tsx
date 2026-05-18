@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { X, Lightbulb } from "lucide-react";
 import QrScanner from "qr-scanner";
 
 interface QRScannerProps {
@@ -13,6 +13,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   const [scanner, setScanner] = useState<QrScanner | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTorchOn, setIsTorchOn] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !videoRef.current) return;
@@ -37,6 +38,31 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
             },
             maxScansPerSecond: 5,
             preferredCamera: "environment", // Use back camera
+            highlightCodeOutlineColor: "rgb(255, 193, 7)",
+            highlightScanRegion: true,
+            // Enhanced camera constraints for better focus
+            calculateScanRegion: (video) => {
+              const dedectionAreaPercent = 0.75;
+              const width = video.videoWidth;
+              const height = video.videoHeight;
+              const margin = Math.min(width, height) * (1 - dedectionAreaPercent) / 2;
+              return {
+                x: margin,
+                y: margin,
+                width: width - 2 * margin,
+                height: height - 2 * margin,
+              };
+            },
+          },
+          {
+            facingMode: "environment", // Back camera
+            // Request high resolution for better QR detection
+            width: { min: 360, ideal: 1920, max: 1920 },
+            height: { min: 360, ideal: 1920, max: 1920 },
+            // Enable autofocus
+            focusMode: [{ exact: "continuous" }],
+            // Improve focus distance
+            focusDistance: [{ exact: 0 }],
           }
         );
 
@@ -61,7 +87,17 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
         scanner.destroy();
       }
     };
-  }, [isOpen, onClose, onScan]);
+  }, [isOpen, onClose, onScan, scanner]);
+
+  const toggleTorch = async () => {
+    if (!scanner) return;
+    try {
+      await scanner.toggleFlash();
+      setIsTorchOn(!isTorchOn);
+    } catch (err) {
+      console.error("Flash not supported on this device:", err);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -70,13 +106,27 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-black/80 backdrop-blur-sm border-b border-gray-800">
         <h2 className="text-lg font-semibold text-white">Scan QR Code</h2>
-        <button
-          onClick={onClose}
-          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-          aria-label="Close scanner"
-        >
-          <X className="w-6 h-6 text-white" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleTorch}
+            className={`p-2 rounded-lg transition-colors ${
+              isTorchOn 
+                ? "bg-yellow-500 hover:bg-yellow-600 text-white" 
+                : "hover:bg-white/10 text-gray-300"
+            }`}
+            aria-label="Toggle flashlight"
+            title="Toggle flashlight"
+          >
+            <Lightbulb className="w-5 h-5" />
+          </button>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            aria-label="Close scanner"
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+        </div>
       </div>
 
       {/* Camera View - Full Screen */}
