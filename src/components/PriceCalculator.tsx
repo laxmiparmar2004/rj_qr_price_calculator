@@ -4,8 +4,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import { TrendingUp, TrendingDown, AlertTriangle, Info, ChevronDown, Settings, RefreshCcw } from "lucide-react";
 import { sendManualRatesToServiceWorker } from "../utils/serviceWorkerUtils";
 
-// Fallback URL — move this to an external server later for rate updates without redeployment
-const FALLBACK_RATES_URL = "/data/rates.json";
+// Cache storage key for metal rates
 const CACHE_STORAGE_KEY = "rj_metal_rates_cache";
 
 // Utility functions for localStorage cache
@@ -75,18 +74,17 @@ export const PriceCalculator = () => {
   const [rateMultiplier, setRateMultiplier] = useState<number>(parsed?.rateMultiplierParam || 1);
   const discountPercent = parsed?.discountPercentParam || 0;
 
-  // Metal rate fetching with standard fetch (fully portable)
   const [metalRateData, setMetalRateData] = useState<any>(null);
   const [metalRateLoading, setMetalRateLoading] = useState(true);
-  const [metalRateError, setMetalRateError] = useState(false);
-  const [rateSource, setRateSource] = useState<"backend" | "cached" | "manual" | "fallback">("fallback");
+  const [rateSource, setRateSource] = useState<"backend" | "cached" | "manual" | "none">("none");
   const [rateTimestamp, setRateTimestamp] = useState<string>("");
   const [isRetryingRates, setIsRetryingRates] = useState(false);
+  const [showMandatoryRateModal, setShowMandatoryRateModal] = useState(false);
+  const [showQuickManualForm, setShowQuickManualForm] = useState(false);
 
   const fetchMetalRates = () => {
     setIsRetryingRates(true);
     setMetalRateLoading(true);
-    setMetalRateError(false);
     
     fetch("https://rjbackend.loca.lt/metal/rate")
       .then(res => {
@@ -94,6 +92,9 @@ export const PriceCalculator = () => {
         return res.json();
       })
       .then(data => {
+        if (data.error) {
+          throw new Error(data.error);
+        }
         setMetalRateData(data);
         setRateSource("backend");
         setRateTimestamp(new Date().toISOString());
@@ -101,6 +102,7 @@ export const PriceCalculator = () => {
         sendManualRatesToServiceWorker(data);
         setMetalRateLoading(false);
         setIsRetryingRates(false);
+        setShowMandatoryRateModal(false);
       })
       .catch(err => {
         console.error("Live rates failed", err);
@@ -112,12 +114,14 @@ export const PriceCalculator = () => {
           sendManualRatesToServiceWorker(cached);
           setMetalRateLoading(false);
           setIsRetryingRates(false);
+          setShowMandatoryRateModal(false);
           return;
         }
 
-        setMetalRateError(true);
+        // No cache available - show mandatory rate entry modal
         setMetalRateLoading(false);
         setIsRetryingRates(false);
+        setShowMandatoryRateModal(true);
       });
   };
 
@@ -125,62 +129,49 @@ export const PriceCalculator = () => {
     fetchMetalRates();
   }, []);
 
-  const [fallbackRates, setFallbackRates] = useState<any>(null);
-  const [usingFallback, setUsingFallback] = useState(false);
-  
   // Manual rate entry state
-  const [showManualRateForm, setShowManualRateForm] = useState(false);
   const [manualGoldRate, setManualGoldRate] = useState("");
   const [manualSilverRate, setManualSilverRate] = useState("");
 
   const handleManualRateEntry = () => {
-    if (!manualGoldRate || !manualSilverRate) {
-      alert("Please enter both gold and silver rates");
+    const goldRate = Number(manualGoldRate);
+    const silverRate = Number(manualSilverRate);
+
+    if (!manualGoldRate || !manualSilverRate || goldRate <= 0 || silverRate <= 0) {
+      alert("Please enter valid positive rates for both gold and silver");
+      return;
+    }
+
+    // Show confirmation dialog
+    const confirmMsg = `Confirm Rates:\n\nGold: ₹${goldRate.toLocaleString("en-IN")} per 10g\nSilver: ₹${silverRate.toLocaleString("en-IN")} per kg\n\nContinue?`;
+    if (!window.confirm(confirmMsg)) {
       return;
     }
 
     const manualData = {
       metalRates: {
-        GL995: Number(manualGoldRate), // Convert from per 10g to total
-        SL_999: Number(manualSilverRate), // Convert from per kg to total
+        GL995: goldRate,
+        SL_999: silverRate,
         recorded_on: new Date().toISOString(),
       }
     };
 
     setMetalRateData(manualData);
     saveCachedRates(manualData);
-    sendManualRatesToServiceWorker(manualData); // Send to service worker
+    sendManualRatesToServiceWorker(manualData);
     setRateSource("manual");
     setRateTimestamp(manualData.metalRates.recorded_on);
-    setShowManualRateForm(false);
+    setShowMandatoryRateModal(false);
+    setShowQuickManualForm(false);
     setManualGoldRate("");
     setManualSilverRate("");
   };
 
-  // Fetch fallback rates if API fails
-  useEffect(() => {
-    if (metalRateError && !fallbackRates) {
-      fetch(FALLBACK_RATES_URL)
-        .then((res) => res.json())
-        .then((data) => {
-          setFallbackRates(data);
-          setUsingFallback(true);
-          if (!metalRateData) {
-            setMetalRateData(data);
-            setRateSource("fallback");
-            setRateTimestamp(data.recorded_on || new Date().toISOString());
-          }
-        })
-        .catch((err) => console.error("Fallback rates also failed:", err));
-    }
-  }, [metalRateError, fallbackRates, metalRateData]);
-
   // Determine effective rates source
   const effectiveRateSource = useMemo(() => {
     if (metalRateData?.metalRates) return metalRateData.metalRates;
-    if (fallbackRates?.metalRates) return fallbackRates.metalRates;
     return null;
-  }, [metalRateData, fallbackRates]);
+  }, [metalRateData]);
 
   // Compute metal rate per gram
   const metalRate = useMemo(() => {
@@ -334,7 +325,7 @@ export const PriceCalculator = () => {
     );
   }
 
-  if (metalRateLoading && !fallbackRates) {
+  if (metalRateLoading && !metalRateData && !showMandatoryRateModal) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-4">
@@ -351,15 +342,125 @@ export const PriceCalculator = () => {
   return (
     <div className="w-full max-w-lg mx-auto px-4 py-6 space-y-5">
 
+      {/* Mandatory Rate Entry Modal - First Time or No Cache */}
+      {showMandatoryRateModal && !metalRateData && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4">
+            <div className="text-center space-y-2">
+              <div className="text-4xl">⚠️</div>
+              <h2 className="text-lg font-bold text-gray-900">Enter Metal Rates</h2>
+              <p className="text-sm text-gray-600">
+                Live rates unavailable. Please enter current market rates to continue.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider font-medium mb-2">
+                  Gold Rate (₹ per 10g)
+                </label>
+                <input
+                  type="number"
+                  value={manualGoldRate}
+                  onChange={(e) => setManualGoldRate(e.target.value)}
+                  placeholder="e.g., 7500"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:border-amber-400 focus:ring-2 focus:ring-amber-200 text-sm font-medium"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider font-medium mb-2">
+                  Silver Rate (₹ per kg)
+                </label>
+                <input
+                  type="number"
+                  value={manualSilverRate}
+                  onChange={(e) => setManualSilverRate(e.target.value)}
+                  placeholder="e.g., 75000"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:border-amber-400 focus:ring-2 focus:ring-amber-200 text-sm font-medium"
+                />
+              </div>
+
+              <button
+                onClick={handleManualRateEntry}
+                disabled={!manualGoldRate || !manualSilverRate}
+                className="w-full px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white font-semibold rounded-lg hover:from-amber-600 hover:to-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Confirm & Continue
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 text-center border-t border-gray-100 pt-3">
+              Rates will be saved locally. When the server comes online, server rates will take priority.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Manual Entry Modal */}
+      {showQuickManualForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Update Rates</h2>
+              <button
+                onClick={() => setShowQuickManualForm(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider font-medium mb-2">
+                  Gold Rate (₹ per 10g)
+                </label>
+                <input
+                  type="number"
+                  value={manualGoldRate}
+                  onChange={(e) => setManualGoldRate(e.target.value)}
+                  placeholder="e.g., 7500"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:border-amber-400 focus:ring-2 focus:ring-amber-200 text-sm font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-600 uppercase tracking-wider font-medium mb-2">
+                  Silver Rate (₹ per kg)
+                </label>
+                <input
+                  type="number"
+                  value={manualSilverRate}
+                  onChange={(e) => setManualSilverRate(e.target.value)}
+                  placeholder="e.g., 75000"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:border-amber-400 focus:ring-2 focus:ring-amber-200 text-sm font-medium"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowQuickManualForm(false)}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleManualRateEntry}
+                  disabled={!manualGoldRate || !manualSilverRate}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white font-semibold rounded-lg hover:from-amber-600 hover:to-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fallback/Cache/Manual Banner */}
       <div className="space-y-2">
-        {usingFallback && !metalRateData && (
-          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-800 text-sm">
-            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-            <span>Using cached rates. Live rates are temporarily unavailable.</span>
-          </div>
-        )}
-
         {(rateSource === "cached") && (
           <div className="flex items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-blue-800 text-sm">
             <div className="flex items-center gap-2">
@@ -382,16 +483,14 @@ export const PriceCalculator = () => {
               ? "bg-green-50 border border-green-200 text-green-800"
               : rateSource === "cached"
               ? "bg-blue-50 border border-blue-200 text-blue-800"
-              : rateSource === "manual"
-              ? "bg-purple-50 border border-purple-200 text-purple-800"
-              : "bg-amber-50 border border-amber-200 text-amber-800"
+              : "bg-purple-50 border border-purple-200 text-purple-800"
           }`}>
             <div className="flex items-center gap-2">
               <Info className="w-4 h-4 flex-shrink-0" />
               <div>
                 <span className="font-medium">Rate Source:</span>
                 <span className="ml-1 capitalize">
-                  {rateSource === "backend" ? "Live (Server)" : rateSource === "cached" ? "Cached" : rateSource === "manual" ? "Manual Entry" : "Fallback"}
+                  {rateSource === "backend" ? "Live (Server)" : rateSource === "cached" ? "Cached" : "Manual Entry"}
                 </span>
               </div>
             </div>
@@ -415,7 +514,7 @@ export const PriceCalculator = () => {
         )}
       </div>
 
-      {/* Metal Type Badge */}
+      {/* Metal Type Badge & Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-2xl">{metalIcon}</span>
@@ -432,15 +531,24 @@ export const PriceCalculator = () => {
             </span>
           </div>
         </div>
-        {effectiveRateSource?.recorded_on && (
-          <span className="text-xs text-gray-400">
-            {new Date(effectiveRateSource.recorded_on).toLocaleDateString("en-IN", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowQuickManualForm(true)}
+            className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg transition-colors"
+            title="Manually enter rates"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+          {effectiveRateSource?.recorded_on && (
+            <span className="text-xs text-gray-400">
+              {new Date(effectiveRateSource.recorded_on).toLocaleDateString("en-IN", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Price Display Card */}
@@ -701,58 +809,6 @@ export const PriceCalculator = () => {
           </div>
         </div>
       )}
-
-      {/* Manual Rate Entry Section */}
-      <div className="border-t-2 border-gray-100 pt-4">
-        <button
-          onClick={() => setShowManualRateForm(!showManualRateForm)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors"
-        >
-          <Settings className="w-4 h-4" />
-          {showManualRateForm ? "Hide" : "Manual Rate Entry"}
-        </button>
-
-        {showManualRateForm && (
-          <div className="mt-4 p-4 bg-white border border-gray-200 rounded-xl space-y-3">
-            <div>
-              <label className="block text-xs text-gray-600 uppercase tracking-wider font-medium mb-2">
-                Gold Rate (₹ per 10g)
-              </label>
-              <input
-                type="number"
-                value={manualGoldRate}
-                onChange={(e) => setManualGoldRate(e.target.value)}
-                placeholder="e.g., 7500"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-amber-400 focus:ring-1 focus:ring-amber-400 text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-600 uppercase tracking-wider font-medium mb-2">
-                Silver Rate (₹ per kg)
-              </label>
-              <input
-                type="number"
-                value={manualSilverRate}
-                onChange={(e) => setManualSilverRate(e.target.value)}
-                placeholder="e.g., 75000"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-amber-400 focus:ring-1 focus:ring-amber-400 text-sm"
-              />
-            </div>
-
-            <button
-              onClick={handleManualRateEntry}
-              className="w-full px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white font-medium rounded-lg hover:from-amber-600 hover:to-amber-700 transition-colors text-sm"
-            >
-              Save Rates
-            </button>
-
-            <p className="text-xs text-gray-500 text-center">
-              Rates will be saved locally and used when the server is unavailable. When the server comes back online, server rates will take priority.
-            </p>
-          </div>
-        )}
-      </div>
 
       {/* Footer */}
       <div className="text-center space-y-2 pt-2 pb-4">

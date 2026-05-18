@@ -9,7 +9,6 @@ let manualRates = null;
 const STATIC_ASSETS = [
   "/",
   "/index.html",
-  "/data/rates.json",
 ];
 
 // Install event - cache static assets
@@ -75,34 +74,27 @@ self.addEventListener("fetch", (event) => {
               );
             }
 
-            // Second priority: Check service worker cache
+            // Second priority: Check service worker cache for previous API responses
             return caches.match(request).then((cached) => {
               if (cached) {
                 return cached;
               }
 
-              // Third priority: Try to get rates from cache (not network)
-              return caches.match("/data/rates.json").then((cachedRates) => {
-                if (cachedRates) {
-                  return cachedRates;
+              // Last resort - return hardcoded fallback
+              return new Response(
+                JSON.stringify({
+                  error: "Offline - using hardcoded fallback",
+                  metalRates: {
+                    GL995: 75000,
+                    SL_999: 75000,
+                    recorded_on: new Date().toISOString(),
+                  },
+                }),
+                {
+                  status: 200,
+                  headers: { "Content-Type": "application/json" },
                 }
-
-                // Last resort - return hardcoded fallback
-                return new Response(
-                  JSON.stringify({
-                    error: "Offline - using hardcoded fallback",
-                    metalRates: {
-                      GL995: 75000,
-                      SL_999: 75000,
-                      recorded_on: new Date().toISOString(),
-                    },
-                  }),
-                  {
-                    status: 200,
-                    headers: { "Content-Type": "application/json" },
-                  }
-                );
-              });
+              );
             });
           } catch (error) {
             // Fallback for any unexpected errors

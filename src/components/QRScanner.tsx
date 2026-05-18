@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Lightbulb, ZoomIn, ZoomOut } from "lucide-react";
+import { X, Lightbulb } from "lucide-react";
 import { Scanner, useDevices } from "@yudiel/react-qr-scanner";
 import { RJLogo } from "./Brand/Logo";
 
-const QrScanner = Scanner.default || Scanner; // Handle both default and named exports
+const QrScanner = Scanner as any; // Handle module export
 
 interface QRScannerProps {
   isOpen: boolean;
@@ -14,7 +14,6 @@ interface QRScannerProps {
 export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   const scannerRef = useRef<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
   const [zoom, setZoom] = useState(1); // Zoom level: 1 = 100%, 2 = 200%, etc.
   const maxZoom = 4;
@@ -27,7 +26,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   useEffect(() => {
     if (!isOpen) {
       setError(null);
-      setIsLoading(false);
       setZoom(1);
     }
   }, [isOpen]);
@@ -188,7 +186,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               className="bg-black text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
             >
               {devices.map((device) => (
-                <option key={device.id} value={device.id}>
+                <option key={device.deviceId} value={device.deviceId}>
                   {device.label}
                 </option>
               ))}
