@@ -66,22 +66,21 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">Scan QR Code</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            aria-label="Close scanner"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
+    <div className="fixed inset-0 bg-black z-50 flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-black/80 backdrop-blur-sm border-b border-gray-800">
+        <h2 className="text-lg font-semibold text-white">Scan QR Code</h2>
+        <button
+          onClick={onClose}
+          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+          aria-label="Close scanner"
+        >
+          <X className="w-6 h-6 text-white" />
+        </button>
+      </div>
 
-        {/* Camera View */}
-        <div className="relative bg-black aspect-square overflow-hidden">
+      {/* Camera View - Full Screen */}
+      <div className="relative bg-black flex-1 overflow-hidden">
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black">
               <div className="text-center space-y-3">
@@ -114,26 +113,29 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
           )}
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="px-6 py-4 bg-red-50 border-t border-red-200">
-            <p className="text-sm text-red-700">{error}</p>
+      </div>
+
+      {/* Error/Instructions Overlay */}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-red-900/90 border border-red-700 rounded-2xl px-6 py-8 max-w-sm text-center space-y-4">
+            <p className="text-sm text-red-100">{error}</p>
             <button
               onClick={onClose}
-              className="mt-3 w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+              className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
             >
               Close
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Instructions */}
-        {!error && (
-          <div className="px-6 py-4 bg-gray-50 text-center text-sm text-gray-600">
-            <p>Position the QR code in the frame to scan</p>
-          </div>
-        )}
-      </div>
+      {/* Instructions Overlay */}
+      {!error && !isLoading && (
+        <div className="absolute bottom-8 left-0 right-0 text-center pointer-events-none">
+          <p className="text-white text-sm font-medium bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full inline-block">Position the QR code in the frame to scan</p>
+        </div>
+      )}
     </div>
   );
 };

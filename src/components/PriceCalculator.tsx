@@ -81,9 +81,13 @@ export const PriceCalculator = () => {
   const [metalRateError, setMetalRateError] = useState(false);
   const [rateSource, setRateSource] = useState<"backend" | "cached" | "manual" | "fallback">("fallback");
   const [rateTimestamp, setRateTimestamp] = useState<string>("");
+  const [isRetryingRates, setIsRetryingRates] = useState(false);
 
-  useEffect(() => {
-    // Try backend first
+  const fetchMetalRates = () => {
+    setIsRetryingRates(true);
+    setMetalRateLoading(true);
+    setMetalRateError(false);
+    
     fetch("https://rjbackend.loca.lt/metal/rate")
       .then(res => {
         if (!res.ok) throw new Error("API Error");
@@ -93,28 +97,33 @@ export const PriceCalculator = () => {
         setMetalRateData(data);
         setRateSource("backend");
         setRateTimestamp(new Date().toISOString());
-        saveCachedRates(data); // Save to localStorage
-        sendManualRatesToServiceWorker(data); // Send to service worker
+        saveCachedRates(data);
+        sendManualRatesToServiceWorker(data);
         setMetalRateLoading(false);
+        setIsRetryingRates(false);
       })
       .catch(err => {
         console.error("Live rates failed", err);
         
-        // Try localStorage cache
         const cached = getCachedRates();
         if (cached?.metalRates) {
           setMetalRateData(cached);
           setRateSource("cached");
           setRateTimestamp(cached.recorded_on || new Date(localStorage.getItem(`${CACHE_STORAGE_KEY}_timestamp`) || Date.now()).toISOString());
-          sendManualRatesToServiceWorker(cached); // Send to service worker
+          sendManualRatesToServiceWorker(cached);
           setMetalRateLoading(false);
+          setIsRetryingRates(false);
           return;
         }
 
-        // Fall back to JSON if cache also fails
         setMetalRateError(true);
         setMetalRateLoading(false);
+        setIsRetryingRates(false);
       });
+  };
+
+  useEffect(() => {
+    fetchMetalRates();
   }, []);
 
   const [fallbackRates, setFallbackRates] = useState<any>(null);
@@ -349,6 +358,22 @@ export const PriceCalculator = () => {
           <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-800 text-sm">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             <span>Using cached rates. Live rates are temporarily unavailable.</span>
+          </div>
+        )}
+
+        {rateSource === "cached" && (
+          <div className="flex items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-blue-800 text-sm">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span>Using cached rates.</span>
+            </div>
+            <button
+              onClick={fetchMetalRates}
+              disabled={isRetryingRates}
+              className="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+            >
+              {isRetryingRates ? "Retrying..." : "Try Server"}
+            </button>
           </div>
         )}
 
