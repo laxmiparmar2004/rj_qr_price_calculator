@@ -108,11 +108,22 @@ export const PriceCalculator = () => {
     "https://kk8rb8x6-3002.inc1.devtunnels.ms/",
   );
 
+  // Using AbortController
+  function fetchWithTimeout(url: string, options = {}, timeout = 5000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+
+    return fetch(url, {
+      ...options,
+      signal: controller.signal,
+    }).finally(() => clearTimeout(id));
+  }
+
   const fetchMetalRates = () => {
     setIsRetryingRates(true);
     setMetalRateLoading(true);
 
-    fetch(MetalRateBackendUrl + "metal/rate")
+    fetchWithTimeout(MetalRateBackendUrl + "metal/rate")
       .then((res) => {
         if (!res.ok) throw new Error("API Error");
         return res.json();
@@ -191,11 +202,22 @@ export const PriceCalculator = () => {
       return;
     }
 
+    const previousData = getCachedRates();
+    const previousGold = previousData?.metalRates?.GL995 || 0;
+    const previousSilver = previousData?.metalRates?.SL_999 || 0;
+
+    const rateGoldChange = previousGold > 0 ? ((goldRate - previousGold) / previousGold) * 100 : 0;
+    const rateSilverChange = previousSilver > 0 ? ((silverRate - previousSilver) / previousSilver) * 100 : 0;
+
     const manualData = {
       metalRates: {
         GL995: goldRate,
         SL_999: silverRate,
         recorded_on: new Date().toISOString(),
+      },
+      rate_change_percent: {
+        GL995: rateGoldChange.toFixed(2),
+        SL_999: rateSilverChange.toFixed(2),
       },
     };
 
@@ -218,9 +240,10 @@ export const PriceCalculator = () => {
 
   const rateChangePercent = useMemo(() => {
     if (!metalRateData || !effectiveRateSource) return null;
-    return metalRateData.rate_change_percent[
+    if (!metalRateData.rate_change_percent) return null;
+    return metalRateData?.rate_change_percent?.[
       metalType == "g" ? "GL995" : "SL_999"
-    ];
+    ] || null;
   }, [metalRateData, metalType]);
 
   // Compute metal rate per gram
@@ -582,7 +605,7 @@ export const PriceCalculator = () => {
                   ) : rateChangePercent < 0 ? (
                     <TrendingDown className="w-3 h-3" />
                   ) : null}
-                  {Math.abs(rateChangePercent)}%
+                  {Math.abs(rateChangePercent).toFixed(2)}%
                 </span>
               )}
             </div>
@@ -764,7 +787,7 @@ export const PriceCalculator = () => {
                 </span>
               )}
             </div>
-              {metalType !== "a" && (
+            {metalType !== "a" && (
               <div className="mt-3 flex items-center gap-1 text-xs text-gray-500">
                 <Info className="w-3 h-3" />
                 <span>
