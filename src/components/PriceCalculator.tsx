@@ -605,7 +605,7 @@ export const PriceCalculator = () => {
                   ) : rateChangePercent < 0 ? (
                     <TrendingDown className="w-3 h-3" />
                   ) : null}
-                  {Math.abs(rateChangePercent).toFixed(2)}%
+                  {Math.abs(rateChangePercent || 0).toFixed(2)}%
                 </span>
               )}
             </div>
