@@ -25,6 +25,7 @@ import {
   clearAuthCookie,
 } from "../utils/authUtils";
 import { EmployeeLoginModal } from "./EmployeeLoginModal";
+import { getMetalRates, subscribeToMetalRateUpdates } from "../utils/supabaseClient";
 
 // Cache storage key for metal rates
 const CACHE_STORAGE_KEY = "rj_metal_rates_cache";
@@ -118,79 +119,114 @@ export const PriceCalculator = () => {
   const [isEmployeeLoggedIn, setIsEmployeeLoggedIn] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Metalrate backend url
-  const [MetalRateBackendUrl] = useState<string>(
-    "https://kk8rb8x6-3002.inc1.devtunnels.ms/",
-  );
-
-  // Using AbortController
-  function fetchWithTimeout(url: string, options = {}, timeout = 5000) {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-
-    return fetch(url, {
-      ...options,
-      signal: controller.signal,
-    }).finally(() => clearTimeout(id));
-  }
-
-  const fetchMetalRates = () => {
+  const fetchMetalRates = async () => {
     setIsRetryingRates(true);
     setMetalRateLoading(true);
 
-    fetchWithTimeout(MetalRateBackendUrl + "metal/rate")
-      .then((res) => {
-        if (!res.ok) throw new Error("API Error");
-        return res.json();
-      })
-      .then((data) => {
-        if (data.error) {
-          throw new Error(data.error);
-        }
-        setMetalRateData(data);
-        setRateSource("backend");
-        console.log("Live rates fetched", data);
+    try {
+      // Fetch from Supabase
+      const response = await getMetalRates();
+
+      if (!response || response.result !== 'Success' || !response.metalRates) {
+        throw new Error("Failed to fetch rates from Supabase");
+      }
+
+      // Use the response directly as it now matches the expected format
+      const transformedData = {
+        metalRates: {
+          GL995: response.metalRates.GL995,
+          SL_999: response.metalRates.SL_999,
+          recorded_on: response.metalRates.recorded_on || new Date().toISOString(),
+        },
+        rate_change_percent: response.rate_change_percent || {
+          GL995: 0,
+          SL_999: 0,
+        },
+      };
+
+      setMetalRateData(transformedData);
+      setRateSource("backend");
+      console.log("Live rates fetched from Supabase", response);
+      setRateTimestamp(
+        new Date(response.metalRates.recorded_on || new Date()).toISOString(),
+      );
+      saveCachedRates(transformedData);
+      sendManualRatesToServiceWorker(transformedData);
+      setMetalRateLoading(false);
+      setIsRetryingRates(false);
+      setShowMandatoryRateModal(false);
+      setServerFailureWarning(false);
+    } catch (err) {
+      console.error("Supabase fetch failed", err);
+      setServerFailureWarning(true);
+      const cached = getCachedRates();
+      if (cached?.metalRates) {
+        setMetalRateData(cached);
+        setRateSource("cached");
         setRateTimestamp(
-          new Date(data?.metalRates?.recorded_on).toISOString() ||
-            new Date().toISOString(),
+          cached?.metalRates?.recorded_on ||
+            cached.recorded_on ||
+            new Date(
+              localStorage.getItem(`${CACHE_STORAGE_KEY}_timestamp`) ||
+                Date.now(),
+            ).toISOString(),
         );
-        saveCachedRates(data);
-        sendManualRatesToServiceWorker(data);
+        sendManualRatesToServiceWorker(cached);
         setMetalRateLoading(false);
         setIsRetryingRates(false);
         setShowMandatoryRateModal(false);
-      })
-      .catch((err) => {
-        console.error("Live rates failed", err);
-        setServerFailureWarning(true);
-        const cached = getCachedRates();
-        if (cached?.metalRates) {
-          setMetalRateData(cached);
-          setRateSource("cached");
-          setRateTimestamp(
-            cached?.metalRates?.recorded_on ||
-              cached.recorded_on ||
-              new Date(
-                localStorage.getItem(`${CACHE_STORAGE_KEY}_timestamp`) ||
-                  Date.now(),
-              ).toISOString(),
-          );
-          sendManualRatesToServiceWorker(cached);
-          setMetalRateLoading(false);
-          setIsRetryingRates(false);
-          setShowMandatoryRateModal(false);
-          return;
-        }
+        return;
+      }
 
-        // No cache available - show mandatory rate entry modal
-        setMetalRateLoading(false);
-        setIsRetryingRates(false);
-        setShowMandatoryRateModal(true);
-      });
+      // No cache available - show mandatory rate entry modal
+      setMetalRateLoading(false);
+      setIsRetryingRates(false);
+      setShowMandatoryRateModal(true);
+    }
   };
 
   useEffect(() => {
+    // Initial fetch
     fetchMetalRates();
+
+    // Subscribe to real-time updates
+    const unsubscribe = subscribeToMetalRateUpdates(
+      (updatedRates) => {
+        // Transform real-time update to match our data format
+        const transformedData = {
+          metalRates: {
+            GL995: updatedRates.GL995,
+            SL_999: updatedRates.SL_999,
+            recorded_on: updatedRates.recorded_on || new Date().toISOString(),
+          },
+          rate_change_percent: updatedRates.rate_change_percent || {
+            GL995: 0,
+            SL_999: 0,
+          },
+        };
+
+        setMetalRateData(transformedData);
+        setRateSource("backend");
+        setRateTimestamp(
+          new Date(updatedRates.recorded_on || new Date()).toISOString(),
+        );
+        saveCachedRates(transformedData);
+        sendManualRatesToServiceWorker(transformedData);
+        setServerFailureWarning(false);
+        console.log("Real-time rate update received:", updatedRates);
+      },
+      (error) => {
+        console.error("Real-time subscription error:", error);
+        // Don't show warning for subscription errors, silently fall back to polling
+      }
+    );
+
+    // Cleanup subscription on unmount
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   // Manual rate entry state
@@ -701,6 +737,24 @@ export const PriceCalculator = () => {
                     </>
                   )}
                 </span>
+                {rateChangePercent !== null && metalType !== "a" && (
+                  <span
+                    className={`inline-flex items-center gap-0.5 font-medium ${
+                      rateChangePercent < 0
+                        ? "text-red-600"
+                        : rateChangePercent > 0
+                          ? "text-green-600"
+                          : "text-gray-500"
+                    }`}
+                  >
+                    {rateChangePercent > 0 ? (
+                      <TrendingUp className="w-3 h-3" />
+                    ) : rateChangePercent < 0 ? (
+                      <TrendingDown className="w-3 h-3" />
+                    ) : null}
+                    {Math.abs(rateChangePercent || 0).toFixed(2)}%
+                  </span>
+                )}
               </div>
             </div>
           )}
