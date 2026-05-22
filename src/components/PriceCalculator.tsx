@@ -15,8 +15,16 @@ import {
   ChevronDown,
   Settings,
   RefreshCcw,
+  Lock,
+  LogIn,
 } from "lucide-react";
 import { sendManualRatesToServiceWorker } from "../utils/serviceWorkerUtils";
+import {
+  isEmployeeAuthenticated,
+  setAuthCookie,
+  clearAuthCookie,
+} from "../utils/authUtils";
+import { EmployeeLoginModal } from "./EmployeeLoginModal";
 
 // Cache storage key for metal rates
 const CACHE_STORAGE_KEY = "rj_metal_rates_cache";
@@ -82,6 +90,11 @@ export const PriceCalculator = () => {
     };
   }, [d]);
 
+  // Check employee authentication on mount
+  useEffect(() => {
+    setIsEmployeeLoggedIn(isEmployeeAuthenticated());
+  }, []);
+
   const metalType = parsed?.metalType || "";
   const [weight, setWeight] = useState<number>(parsed?.weight || 0);
   const [makingChargePercent, setMakingChargePercent] = useState<number>(
@@ -102,6 +115,8 @@ export const PriceCalculator = () => {
   const [showMandatoryRateModal, setShowMandatoryRateModal] = useState(false);
   const [showQuickManualForm, setShowQuickManualForm] = useState(false);
   const [serverFailureWarning, setServerFailureWarning] = useState(false);
+  const [isEmployeeLoggedIn, setIsEmployeeLoggedIn] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Metalrate backend url
   const [MetalRateBackendUrl] = useState<string>(
@@ -330,6 +345,20 @@ export const PriceCalculator = () => {
     setTimeout(() => setShowMinPrice(false), 3000);
   };
 
+  // Employee authentication handlers
+  const handleEmployeeLogin = (otp: string): boolean => {
+    const success = setAuthCookie(otp);
+    if (success) {
+      setIsEmployeeLoggedIn(true);
+    }
+    return success;
+  };
+
+  const handleEmployeeLogout = () => {
+    clearAuthCookie();
+    setIsEmployeeLoggedIn(false);
+  };
+
   // --- Price History Logic (same pattern as ProductDetail) ---
   const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
 
@@ -433,6 +462,15 @@ export const PriceCalculator = () => {
 
   return (
     <div className="w-full max-w-lg mx-auto px-4 py-6 space-y-5">
+      {/* Employee Login Modal */}
+      <EmployeeLoginModal
+        isOpen={showLoginModal}
+        isAuthenticated={isEmployeeLoggedIn}
+        onClose={() => setShowLoginModal(false)}
+        onLogin={handleEmployeeLogin}
+        onLogout={handleEmployeeLogout}
+      />
+
       {/* Mandatory Rate Entry Modal - First Time or No Cache */}
       {showMandatoryRateModal && !metalRateData && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -557,94 +595,117 @@ export const PriceCalculator = () => {
       {/* Status & Rate Info */}
       {metalRateData && rateTimestamp && (
         <div className="space-y-2 border rounded p-1">
-          {/* Unified Status Banner */}
-          <div
-            className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm ${
-              serverFailureWarning
-                ? "bg-red-50 border border-red-200 text-red-800"
-                : rateSource === "backend"
-                  ? "bg-green-50 border border-green-200 text-green-800"
-                  : rateSource === "cached"
-                    ? "bg-blue-50 border border-blue-200 text-blue-800"
-                    : "bg-purple-50 border border-purple-200 text-purple-800"
-            }`}
-          >
-            <div className="flex items-center gap-2 flex-1">
-              <Info className="w-4 h-4 flex-shrink-0" />
-              <span className="text-xs">
-                {serverFailureWarning
-                  ? "Server error • Using "
+          {/* Employees Only: Unified Status Banner with Error Info & Refresh */}
+          {isEmployeeLoggedIn && (
+            <div
+              className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm ${
+                serverFailureWarning
+                  ? "bg-red-50 border border-red-200 text-red-800"
                   : rateSource === "backend"
-                    ? "Live Server • "
+                    ? "bg-green-50 border border-green-200 text-green-800"
                     : rateSource === "cached"
-                      ? "Cached Rates • "
-                      : "Manual Entry • "}
-                {metalType !== "a" && (
-                  <>
-                    {metalType === "g" ? "Gold 995" : "Silver 999"}:{" "}
-                    <strong>
-                      {effectiveRateSource
-                        ? `₹${Number(metalType === "g" ? effectiveRateSource.GL995 : effectiveRateSource.SL_999).toLocaleString("en-IN")}`
-                        : "—"}
-                    </strong>
-                  </>
-                )}
-              </span>
-              {rateChangePercent !== null && metalType !== "a" && (
-                <span
-                  className={`inline-flex items-center gap-0.5 font-medium ${
-                    rateChangePercent < 0
-                      ? "text-red-600"
-                      : rateChangePercent > 0
-                        ? "text-green-600"
-                        : "text-gray-500"
-                  }`}
-                >
-                  {rateChangePercent > 0 ? (
-                    <TrendingUp className="w-3 h-3" />
-                  ) : rateChangePercent < 0 ? (
-                    <TrendingDown className="w-3 h-3" />
-                  ) : null}
-                  {Math.abs(rateChangePercent || 0).toFixed(2)}%
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {serverFailureWarning && (
-                <button
-                  onClick={() => setServerFailureWarning(false)}
-                  className="text-red-600 hover:text-red-800 font-semibold text-lg leading-none"
-                >
-                  ×
-                </button>
-              )}
-              {rateSource === "cached" && (
-                <button
-                  onClick={fetchMetalRates}
-                  disabled={isRetryingRates}
-                  className="px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                >
-                  {isRetryingRates ? "Retrying..." : "Try Server"}
-                </button>
-              )}
-              {rateSource !== "cached" && (
-                <button
-                  onClick={fetchMetalRates}
-                  disabled={isRetryingRates}
-                  className="p-1.5 text-gray-500 hover:text-gray-700 transition-colors"
-                  title="Refresh rates"
-                >
-                  {isRetryingRates ? (
-                    <RefreshCcw size={14} className="animate-spin" />
-                  ) : (
-                    <RefreshCcw size={14} />
+                      ? "bg-blue-50 border border-blue-200 text-blue-800"
+                      : "bg-purple-50 border border-purple-200 text-purple-800"
+              }`}
+            >
+              <div className="flex items-center gap-2 flex-1">
+                <Info className="w-4 h-4 shrink-0" />
+                <span className="text-xs">
+                  {serverFailureWarning
+                    ? "Server error • Using "
+                    : rateSource === "backend"
+                      ? "Live Server • "
+                      : rateSource === "cached"
+                        ? "Cached Rates • "
+                        : "Manual Entry • "}
+                  {metalType !== "a" && (
+                    <>
+                      {metalType === "g" ? "Gold 995" : "Silver 999"}:{" "}
+                      <strong>
+                        {effectiveRateSource
+                          ? `₹${Number(metalType === "g" ? effectiveRateSource.GL995 : effectiveRateSource.SL_999).toLocaleString("en-IN")}`
+                          : "—"}
+                      </strong>
+                    </>
                   )}
-                </button>
-              )}
+                </span>
+                {rateChangePercent !== null && metalType !== "a" && (
+                  <span
+                    className={`inline-flex items-center gap-0.5 font-medium ${
+                      rateChangePercent < 0
+                        ? "text-red-600"
+                        : rateChangePercent > 0
+                          ? "text-green-600"
+                          : "text-gray-500"
+                    }`}
+                  >
+                    {rateChangePercent > 0 ? (
+                      <TrendingUp className="w-3 h-3" />
+                    ) : rateChangePercent < 0 ? (
+                      <TrendingDown className="w-3 h-3" />
+                    ) : null}
+                    {Math.abs(rateChangePercent || 0).toFixed(2)}%
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {serverFailureWarning && (
+                  <button
+                    onClick={() => setServerFailureWarning(false)}
+                    className="text-red-600 hover:text-red-800 font-semibold text-lg leading-none"
+                  >
+                    ×
+                  </button>
+                )}
+                {rateSource === "cached" && (
+                  <button
+                    onClick={fetchMetalRates}
+                    disabled={isRetryingRates}
+                    className="px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                  >
+                    {isRetryingRates ? "Retrying..." : "Try Server"}
+                  </button>
+                )}
+                {rateSource !== "cached" && (
+                  <button
+                    onClick={fetchMetalRates}
+                    disabled={isRetryingRates}
+                    className="p-1.5 text-gray-500 hover:text-gray-700 transition-colors"
+                    title="Refresh rates"
+                  >
+                    {isRetryingRates ? (
+                      <RefreshCcw size={14} className="animate-spin" />
+                    ) : (
+                      <RefreshCcw size={14} />
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Last Updated Inline */}
+          {/* Customers Only: Simplified Rate Display (Read-only) */}
+          {!isEmployeeLoggedIn && (
+            <div className="flex items-center justify-between px-4 py-3 rounded-xl text-sm bg-amber-50 border border-amber-200">
+              <div className="flex items-center gap-2 flex-1">
+                <Info className="w-4 h-4 shrink-0 text-amber-600" />
+                <span className="text-xs text-amber-900">
+                  {metalType !== "a" && (
+                    <>
+                      {metalType === "g" ? "Gold 995" : "Silver 999"}:{" "}
+                      <strong>
+                        {effectiveRateSource
+                          ? `₹${Number(metalType === "g" ? effectiveRateSource.GL995 : effectiveRateSource.SL_999).toLocaleString("en-IN")}`
+                          : "—"}
+                      </strong>
+                    </>
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Last Updated - Visible to All */}
           <div className="flex items-center justify-between text-xs text-gray-500 px-4">
             <span>Updated {formatLastUpdated(rateTimestamp)}</span>
             {effectiveRateSource?.recorded_on && (
@@ -678,6 +739,31 @@ export const PriceCalculator = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowLoginModal(true)}
+            className={`p-2 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-medium ${
+              isEmployeeLoggedIn
+                ? "bg-green-50 hover:bg-green-100 text-green-700"
+                : "bg-amber-50 hover:bg-amber-100 text-amber-700"
+            }`}
+            title={
+              isEmployeeLoggedIn
+                ? "Employee logged in - Click to manage access"
+                : "Login as employee to unlock features"
+            }
+          >
+            {isEmployeeLoggedIn ? (
+              <>
+                <Lock className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Unlocked</span>
+              </>
+            ) : (
+              <>
+                <LogIn className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Login</span>
+              </>
+            )}
+          </button>
           <button
             onClick={() => setShowQuickManualForm(true)}
             className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg transition-colors"
@@ -724,7 +810,7 @@ export const PriceCalculator = () => {
         <div className="relative z-10">
           <div className="flex justify-between items-start">
             <span
-              onClick={handleRevealMinPrice}
+              onDoubleClick={handleRevealMinPrice}
               className="text-xs text-gray-500 uppercase tracking-wider font-medium cursor-pointer"
             >
               Approx. Price
@@ -832,30 +918,55 @@ export const PriceCalculator = () => {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-1.5 shadow-sm relative">
-            <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">
-              {"Making %"}
-            </label>
-            <div className="flex items-end gap-1">
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">
+                {"Making %"}
+              </label>
+              {!isEmployeeLoggedIn && (
+                <div title="Employee access required">
+                  <Lock className="w-3 h-3 text-red-500" />
+                </div>
+              )}
+            </div>
+            <div className="flex items-end gap-1 relative">
               <input
                 type="number"
                 step="0.1"
                 value={makingChargePercent}
-                onChange={(e) => setMakingChargePercent(Number(e.target.value))}
+                onChange={(e) => {
+                  if (isEmployeeLoggedIn) {
+                    setMakingChargePercent(Number(e.target.value));
+                  }
+                }}
+                onFocus={() => {
+                  if (!isEmployeeLoggedIn) {
+                    setShowLoginModal(true);
+                  }
+                }}
+                disabled={!isEmployeeLoggedIn}
                 className={`text-2xl font-light bg-transparent border-0 border-b-2 focus:ring-0 w-full p-0 pb-1 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                  currentPrice < Math.round(originalMinTotal)
-                    ? "text-red-600 border-red-300 focus:border-red-500"
-                    : "text-gray-900 border-gray-200 focus:border-amber-400"
+                  !isEmployeeLoggedIn
+                    ? "text-gray-300 border-gray-200 cursor-not-allowed opacity-60"
+                    : currentPrice < Math.round(originalMinTotal)
+                      ? "text-red-600 border-red-300 focus:border-red-500"
+                      : "text-gray-900 border-gray-200 focus:border-amber-400"
                 }`}
               />
               <span className="text-sm text-gray-400 pb-1">
                 {metalType === "g" ? "%" : "₹/g"}
               </span>
             </div>
-            {currentPrice < Math.round(originalMinTotal) && (
+            {!isEmployeeLoggedIn && (
               <span className="absolute -bottom-5 right-2 text-[10px] text-red-500 font-medium">
-                Below allowed limit
+                🔒 Employee access required
               </span>
             )}
+            {isEmployeeLoggedIn &&
+              currentPrice < Math.round(originalMinTotal) && (
+                <span className="absolute -bottom-5 right-2 text-[10px] text-red-500 font-medium">
+                  Below allowed limit
+                </span>
+              )}
           </div>
         </div>
       )}
