@@ -135,11 +135,6 @@ export const PriceCalculatorPage = () => {
       : parsed.metalType.toUpperCase();
 
   // Gold defaults to 18K (0.75) unless the QR explicitly sets a multiplier
-  const rateMultiplier =
-    isGold && !parsed.hasExplicitMultiplier
-      ? 0.75
-      : parsed.rateMultiplierParam;
-
   const karat = isGold ? `24K` : "";
 
   // Gold: GL995 is ₹/10g -> per gram = /10. Silver: SL_999 is ₹/kg -> per gram = /1000

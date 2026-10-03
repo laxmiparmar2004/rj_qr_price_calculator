@@ -1,3 +1,3 @@
 export { supabase } from "./client";
-export { getMetalRates } from "./metalRates";
+export { getMetalRates, subscribeToMetalRateUpdates } from "./metalRates";
 export type * from "./types";

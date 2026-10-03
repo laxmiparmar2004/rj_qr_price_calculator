@@ -25,7 +25,7 @@ import {
   clearAuthCookie,
 } from "../utils/authUtils";
 import { EmployeeLoginModal } from "./EmployeeLoginModal";
-import { getMetalRates, subscribeToMetalRateUpdates } from "../utils/supabaseClient";
+import { getMetalRates, subscribeToMetalRateUpdates } from "../supabase";
 
 // Cache storage key for metal rates
 const CACHE_STORAGE_KEY = "rj_metal_rates_cache";
@@ -191,15 +191,16 @@ export const PriceCalculator = () => {
 
     // Subscribe to real-time updates
     const unsubscribe = subscribeToMetalRateUpdates(
-      (updatedRates) => {
+      (updatedRates: Record<string, unknown>) => {
         // Transform real-time update to match our data format
+        const rateUpdate = updatedRates as Record<string, unknown>;
         const transformedData = {
           metalRates: {
-            GL995: updatedRates.GL995,
-            SL_999: updatedRates.SL_999,
-            recorded_on: updatedRates.recorded_on || new Date().toISOString(),
+            GL995: Number(rateUpdate.GL995 ?? 0),
+            SL_999: Number(rateUpdate.SL_999 ?? 0),
+            recorded_on: String(rateUpdate.recorded_on ?? new Date().toISOString()),
           },
-          rate_change_percent: updatedRates.rate_change_percent || {
+          rate_change_percent: (rateUpdate.rate_change_percent as Record<string, number>) || {
             GL995: 0,
             SL_999: 0,
           },
@@ -208,14 +209,14 @@ export const PriceCalculator = () => {
         setMetalRateData(transformedData);
         setRateSource("backend");
         setRateTimestamp(
-          new Date(updatedRates.recorded_on || new Date()).toISOString(),
+          new Date(String(rateUpdate.recorded_on ?? new Date().toISOString())).toISOString(),
         );
         saveCachedRates(transformedData);
         sendManualRatesToServiceWorker(transformedData);
         setServerFailureWarning(false);
         console.log("Real-time rate update received:", updatedRates);
       },
-      (error) => {
+      (error: Error) => {
         console.error("Real-time subscription error:", error);
         // Don't show warning for subscription errors, silently fall back to polling
       }

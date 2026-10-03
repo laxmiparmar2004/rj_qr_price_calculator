@@ -1,4 +1,4 @@
-import { supabase } from "./client";
+import { isSupabaseConfigured, supabase } from "./client";
 import type {
   MetalRateRow,
   MetalRatesResponse,
@@ -37,7 +37,42 @@ const calcChangePercent = (
   return result;
 };
 
+export function subscribeToMetalRateUpdates(
+  onUpdate: (updatedRates: Record<string, unknown>) => void,
+  onError?: (error: Error) => void,
+) {
+  if (!isSupabaseConfigured) {
+    onError?.(new Error("Supabase is not configured"));
+    return () => undefined;
+  }
+
+  const channel = supabase.channel("metal_rates_realtime");
+
+  channel.on(
+    "postgres_changes",
+    { event: "UPDATE", schema: "public", table: "metal_rates" },
+    (payload) => {
+      const next = payload.new as Record<string, unknown>;
+      onUpdate(next);
+    }
+  );
+
+  channel.subscribe((status) => {
+    if (status === "CHANNEL_ERROR" && onError) {
+      onError(new Error("Realtime channel failed"));
+    }
+  });
+
+  return () => {
+    void channel.unsubscribe();
+  };
+}
+
 export async function getMetalRates(): Promise<MetalRatesResponse | null> {
+  if (!isSupabaseConfigured) {
+    return null;
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
