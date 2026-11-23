@@ -1,5 +1,6 @@
 import { supabase } from "../supabase/client";
 import type {
+  CustomerLoginPortalResponse,
   CustomerPortalResponse,
   CustomerScheme,
   SchemeBonus,
@@ -98,6 +99,21 @@ const normalizeScheme = (row: Record<string, unknown>): CustomerScheme => {
   };
 };
 
+const normalizeLoginPortalResponse = (data: unknown): CustomerLoginPortalResponse | null => {
+  if (!data) {
+    return null;
+  }
+
+  const payload = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  
+  return {session_token : payload.session_token as string};
+
+};
+
 const normalizePortalResponse = (data: unknown): CustomerPortalResponse | null => {
   if (!data) {
     return null;
@@ -119,8 +135,14 @@ const normalizePortalResponse = (data: unknown): CustomerPortalResponse | null =
     "Customer"
   );
 
+  const normalizedCustomerPhone = toStringValue(
+    payload.customer_phone ?? payload.customerPhone ?? payload.phone ?? "",
+    ""
+  );
+
   return {
     customer_name: normalizedCustomerName,
+    customer_phone: normalizedCustomerPhone,
     schemes: schemesRaw.map((entry) => normalizeScheme(entry as Record<string, unknown>)),
   };
 };
@@ -129,6 +151,7 @@ const fallbackPortalResponse = (phoneNumber: string, otp: string): CustomerPorta
   if (import.meta.env.DEV && phoneNumber === "9876543210" && otp === "123456") {
     return {
       customer_name: "Aarav Mehta",
+      customer_phone: "9876543210",
       schemes: [
         {
           id: 3,
@@ -177,7 +200,7 @@ const fallbackPortalResponse = (phoneNumber: string, otp: string): CustomerPorta
 export const verifyCustomerOtp = async (
   phoneNumber: string,
   otp: string
-): Promise<CustomerPortalResponse> => {
+): Promise<CustomerLoginPortalResponse> => {
   const normalizedPhone = normalizePhoneNumber(phoneNumber);
 
   if (!normalizedPhone || normalizedPhone.length !== 10) {
@@ -208,7 +231,7 @@ export const verifyCustomerOtp = async (
           continue;
         }
 
-        const normalized = normalizePortalResponse(data);
+        const normalized = normalizeLoginPortalResponse(data);
         if (normalized) {
           return normalized;
         }
@@ -226,10 +249,10 @@ export const verifyCustomerOtp = async (
     }
   }
 
-  const fallback = fallbackPortalResponse(normalizedPhone, otp.trim());
-  if (fallback) {
-    return fallback;
-  }
+  // const fallback = fallbackPortalResponse(normalizedPhone, otp.trim());
+  // if (fallback) {
+  //   return fallback;
+  // }
 
   throw new Error("Invalid OTP or customer not found.");
 };
@@ -241,3 +264,36 @@ export const getCustomerPortalData = async (
     "Customer portal data is already returned by the OTP verification RPC. No extra fetch should be made here."
   );
 };
+
+
+export const loadCustomerPortal = async (token: string) : Promise<CustomerPortalResponse | undefined | null> => {
+
+    try {
+        const { data, error } = await supabase.rpc(
+            "get_customer_portal_data",
+            {
+                p_session_token: token
+            }
+        );
+
+        if (error) throw error;
+        
+        return normalizePortalResponse(data) as CustomerPortalResponse;
+
+    } catch (error) {
+        console.error("Portal loading failed:", error);
+        // Keep the session if this is only a network/server failure.
+    }
+  };
+  
+  export const logoutCustomerPortal = async (token: string): Promise<void> => {
+      const { data, error } = await supabase.rpc(
+          "logout_customer_portal",
+          {
+              p_session_token: token
+          }
+      );
+    
+      if (error) throw error;
+
+}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import type { CustomerScheme, CustomerSession } from "../../types/customerPortal";
+import type { CustomerPortalResponse, CustomerScheme, CustomerSession } from "../../types/customerPortal";
 import { InstallmentTable } from "./InstallmentTable";
 import { ImportantSchemeTerms } from "./t&c/ImportantSchemeTerms";
 import { TermsModal } from "./t&c/TermsModal";
@@ -10,7 +10,7 @@ import { PaymentSummary } from "./PaymentSummary";
 import { EmptyState } from "./EmptyState";
 
 interface CustomerDashboardProps {
-  customer: CustomerSession;
+  customer: CustomerPortalResponse;
   onLogout: () => void;
 }
 
@@ -68,7 +68,7 @@ export const CustomerDashboard = ({
   customer,
   onLogout,
 }: CustomerDashboardProps) => {
-  const schemes = useMemo(() => customer.portalData.schemes ?? [], [customer.portalData]);
+  const schemes = useMemo(() => customer.schemes ?? [], [customer]);
   const [selectedSchemeId, setSelectedSchemeId] = useState<number | null>(null);
    const [showTerms, setShowTerms] = useState(false);
   
@@ -91,14 +91,14 @@ export const CustomerDashboard = ({
 
   const header = (
     <CardHeader
-      name={customer.portalData.customer_name}
-      phone={customer.phone.replace(/(\d{2})(\d{5})(\d{3})/, "$1*****$3")}
+      name={customer.customer_name}
+      phone={customer.customer_phone?.replace(/(\d{2})(\d{5})(\d{3})/, "$1*****$3")}
       onLogout={onLogout}
     />
   );
 
   return (
-    <div className="min-h-screen bg-[#f7f2ea] px-3 py-4 text-stone-800 sm:px-6 lg:px-8">
+    <div className="min-h-screen px-3 py-4 text-stone-800 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl space-y-4">
         {header}
 
@@ -109,7 +109,10 @@ export const CustomerDashboard = ({
   />
 ) : selectedScheme ? (
   <>
-    <InstallmentTable scheme={selectedScheme} />
+    <InstallmentTable
+      scheme={selectedScheme}
+      customerName={customer.customer_name}
+    />
     
     <ImportantSchemeTerms
       bonusAmount={selectedScheme.bonus?.amount ?? 0}

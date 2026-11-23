@@ -79,7 +79,7 @@ export const CustomerLogin = ({ onLogin }: CustomerLoginProps) => {
 
       onLogin({
         phone: normalizedPhone,
-        portalData,
+        session_token: portalData.session_token,
       });
     } catch (requestError) {
       const message =

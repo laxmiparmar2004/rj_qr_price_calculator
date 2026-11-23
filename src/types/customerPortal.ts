@@ -16,14 +16,19 @@ export type InstallmentStatus =
   | "approved"
   | "redeemed";
 
+export interface CustomerLoginPortalResponse {
+  session_token : string;
+}
+
 export interface CustomerPortalResponse {
   customer_name: string;
+  customer_phone: string;
   schemes: CustomerScheme[];
 }
 
 export interface CustomerSession {
   phone: string;
-  portalData: CustomerPortalResponse;
+  session_token: string;
 }
 
 export interface SchemeBonus {
