@@ -7,12 +7,9 @@ import { useEffect } from "react";
 export const CustomerPortalApp = () => {
   const { customer, isAuthenticated, isReady, login, logout, customerPortalData } = useCustomerSession();
 
-  useEffect(() => {
-    if (customer?.session_token) {
-
-    };
-  }, [customer?.session_token]);
-
+  if (!customer) {
+     return <CustomerLogin onLogin={login} />;
+  }
 
   if (!isReady) {
     return <LoadingSkeleton />;
@@ -22,5 +19,4 @@ export const CustomerPortalApp = () => {
     return <CustomerDashboard customer={customerPortalData} onLogout={logout} />;
   }
 
-  return <CustomerLogin onLogin={login} />;
 };

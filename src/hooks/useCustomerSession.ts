@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { CustomerPortalResponse, CustomerSession } from "../types/customerPortal";
-import { loadCustomerPortal } from "../services/customerPortalService";
+import { loadCustomerPortal, logoutCustomerPortal } from "../services/customerPortalService";
 
 const CUSTOMER_SESSION_STORAGE_KEY = "customer_scheme_session_v1";
 
@@ -45,6 +45,9 @@ export const useCustomerSession = () => {
     if (customer?.session_token) {
       const loadPortalData = async () => {
         const portalData = await loadCustomerPortal(customer.session_token);
+        if (!portalData) {
+          logout(); // Clear session if portal data cannot be loaded
+        }
         setCustomerPortalData(portalData);
         setIsReady(true);
       };
@@ -62,6 +65,7 @@ export const useCustomerSession = () => {
   }, []);
 
   const logout = useCallback(() => {
+    // logoutCustomerPortal(customer?.session_token ?? "");
     setCustomer(null);
     localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
   }, []);

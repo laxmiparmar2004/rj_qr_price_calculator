@@ -228,10 +228,15 @@ export const loadCustomerPortal = async (token: string) : Promise<CustomerPortal
 
         if (error) throw error;
         
+        if (!data) {
+          throw new Error("No data returned from the customer portal.");
+        }
+
         return normalizePortalResponse(data) as CustomerPortalResponse;
 
     } catch (error) {
         console.error("Portal loading failed:", error);
+        return null;
         // Keep the session if this is only a network/server failure.
     }
   };
