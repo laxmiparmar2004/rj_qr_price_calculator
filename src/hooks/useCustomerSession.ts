@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { CustomerPortalResponse, CustomerSession } from "../types/customerPortal";
-import { loadCustomerPortal, logoutCustomerPortal } from "../services/customerPortalService";
+import { loadCustomerPortal } from "../services/customerPortalService";
 
 const CUSTOMER_SESSION_STORAGE_KEY = "customer_scheme_session_v1";
 
