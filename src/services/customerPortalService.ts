@@ -147,56 +147,6 @@ const normalizePortalResponse = (data: unknown): CustomerPortalResponse | null =
   };
 };
 
-const fallbackPortalResponse = (phoneNumber: string, otp: string): CustomerPortalResponse | null => {
-  if (import.meta.env.DEV && phoneNumber === "9876543210" && otp === "123456") {
-    return {
-      customer_name: "Aarav Mehta",
-      customer_phone: "9876543210",
-      schemes: [
-        {
-          id: 3,
-          local_user_scheme_id: 7,
-          scheme_title: "Swarn Bachat Yojana",
-          scheme_amount: 500,
-          status: "ongoing",
-          start_date: "2026-09-22",
-          end_date: "2027-08-22",
-          synced_at: "2026-10-01T14:03:00.231+00:00",
-          installments: [
-            {
-              number: 1,
-              status: "paid",
-              due_date: "2026-09-22",
-              late_fee: 0,
-              paid_date: "2026-10-01T14:02:09.034Z",
-              amount_due: 0,
-              amount_paid: 500,
-            },
-            {
-              number: 2,
-              status: "pending",
-              due_date: "2026-11-01",
-              late_fee: 0,
-              paid_date: null,
-              amount_due: 500,
-              amount_paid: null,
-            },
-          ],
-          bonus: {
-            date: "2027-09-01",
-            amount: 500,
-            approved: null,
-            redeemed: false,
-            redeem_date: null,
-          },
-        },
-      ],
-    };
-  }
-
-  return null;
-};
-
 export const verifyCustomerOtp = async (
   phoneNumber: string,
   otp: string
@@ -287,7 +237,7 @@ export const loadCustomerPortal = async (token: string) : Promise<CustomerPortal
   };
   
   export const logoutCustomerPortal = async (token: string): Promise<void> => {
-      const { data, error } = await supabase.rpc(
+      const { error } = await supabase.rpc(
           "logout_customer_portal",
           {
               p_session_token: token

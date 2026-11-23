@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import type { CustomerPortalResponse, CustomerScheme, CustomerSession } from "../../types/customerPortal";
+import type { CustomerPortalResponse, CustomerScheme } from "../../types/customerPortal";
 import { InstallmentTable } from "./InstallmentTable";
 import { ImportantSchemeTerms } from "./t&c/ImportantSchemeTerms";
 import { TermsModal } from "./t&c/TermsModal";
